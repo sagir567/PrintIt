@@ -1,0 +1,17 @@
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Infrastructure.deps.json
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Infrastructure.runtimeconfig.json
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Infrastructure.dll
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Infrastructure.pdb
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Domain.dll
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\bin\Debug\net8.0\PrintIt.Domain.pdb
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.AssemblyInfo.cs
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.csproj.CopyComplete
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.dll
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\refint\PrintIt.Infrastructure.dll
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.pdb
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\PrintIt.Infrastructure.genruntimeconfig.cache
+C:\Users\Sagi\Documents\Print IT (3d print store)\PrintIt\PrintIt.Infrastructure\obj\Debug\net8.0\ref\PrintIt.Infrastructure.dll

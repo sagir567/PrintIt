@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: printit_postgres
+    environment:
+      POSTGRES_USER: printit
+      POSTGRES_PASSWORD: printit
+      POSTGRES_DB: printit_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - printit_pgdata:/var/lib/postgresql/data
+
+volumes:
+  printit_pgdata:
