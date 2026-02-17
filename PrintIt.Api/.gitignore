@@ -6,3 +6,4 @@ obj/
 *.db
 *.log
 **/appsettings.Development.json
+*.sourcelink.json
