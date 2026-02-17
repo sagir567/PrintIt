@@ -71,5 +71,51 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentSpoolRequest re
     });
 
 }
+
+public record ConsumeSpoolRequest(int GramsUsed);
+
+[HttpPatch("{id}/consume")]
+public async Task<IActionResult> Consume(Guid id, [FromBody] ConsumeSpoolRequest request)
+{
+    var gramsUsed = request.GramsUsed;
+
+    if (gramsUsed <= 0)
+        return BadRequest(new { message = "GramsUsed must be greater than 0." });
+
+    var spool = await _db.FilamentSpools
+        .FirstOrDefaultAsync(x => x.Id == id);
+
+    if (spool == null)
+        return NotFound(new { message = "Filament spool not found." });
+
+    // Tolerance: slicer estimates are not perfect; we keep a small safety margin.
+    const int toleranceGrams = 10;
+
+    // We allow consuming up to (RemainingGrams + tolerance) but never let RemainingGrams go below 0.
+    if (gramsUsed > spool.RemainingGrams + toleranceGrams)
+        return Conflict(new
+        {
+            message = "Not enough filament remaining in this spool.",
+            remainingGrams = spool.RemainingGrams,
+            toleranceGrams
+        });
+
+    spool.RemainingGrams = Math.Max(0, spool.RemainingGrams - gramsUsed);
+    spool.LastUsedAtUtc = DateTime.UtcNow;
+
+    if (spool.RemainingGrams == 0)
+        spool.Status = "Empty";
+    else if (spool.RemainingGrams < spool.InitialGrams)
+        spool.Status = "Opened";
+    else
+        spool.Status = "New";
+
+    await _db.SaveChangesAsync();
+    return NoContent();
+}
+
+
+
+
 }
 
