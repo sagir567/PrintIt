@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
+using PrintIt.Api.DomainLogic;
+
 
 namespace PrintIt.Api.Controllers;
 
@@ -176,4 +178,50 @@ public async Task<IActionResult> GetSpools(Guid id)
     return Ok(spools);
 }
 
+
+    public record ConsumeFilamentRequest(int GramsUsed);
+
+    [HttpPatch("{id}/consume")]
+    public async Task<IActionResult> ConsumeFromInventory(Guid id, [FromBody] ConsumeFilamentRequest request)
+    {
+        if (request.GramsUsed <= 0)
+            return BadRequest(new { message = "GramsUsed must be greater than 0." });
+
+        // Admin can consume even if filament is inactive (inventory operations), but it must exist.
+        var filamentExists = await _db.Filaments
+            .IgnoreQueryFilters()
+            .AnyAsync(x => x.Id == id);
+
+        if (!filamentExists)
+            return NotFound(new { message = "Filament not found." });
+
+        const int toleranceGrams = 10;
+        var gramsUsed = request.GramsUsed;
+
+        // Pick one spool that can satisfy the request.
+        // Policy:
+        // 1) Only spools that still have material (RemainingGrams > 0)
+        // 2) Must satisfy RemainingGrams + tolerance >= gramsUsed
+        // 3) Prefer Opened, then New
+        // 4) Oldest first
+        var spool = await _db.FilamentSpools
+            .Where(x => x.FilamentId == id)
+            .Where(x => x.RemainingGrams > 0)
+            .Where(x => x.RemainingGrams + toleranceGrams >= gramsUsed)
+            .OrderBy(x => x.Status == "Opened" ? 0 : 1)
+            .ThenBy(x => x.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+
+        if (spool == null)
+            return Conflict(new { message = "Not enough inventory to fulfill this request." });
+
+        // Extra safety check (helps in case something changed between query and update)
+        if (!SpoolConsumption.CanConsume(spool, gramsUsed, toleranceGrams))
+            return Conflict(new { message = "Not enough inventory to fulfill this request." });
+
+        SpoolConsumption.Apply(spool, gramsUsed);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
