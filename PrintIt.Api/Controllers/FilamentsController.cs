@@ -16,33 +16,38 @@ public class FilamentsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetActive()
     {
         var items = await _db.Filaments
-            .Include(x => x.MaterialType)
-            .Include(x => x.Color)
-            .Where(x => x.IsActive)
-            .Where(x => x.MaterialType.IsActive)
-            .Where(x => x.Color.IsActive)
-            // Show only filaments that have at least one spool with material in it.
-            .Where(x => x.Spools.Any(s => s.RemainingGrams > 0))
-            .OrderBy(x => x.MaterialType.Name)
-            .ThenBy(x => x.Color.Name)
-            .ThenBy(x => x.Brand)
-            .Select(x => new
+            .AsNoTracking()
+            // Keep explicit active filter even if there is a global query filter (clearer + safer)
+            .Where(f => f.IsActive)
+            // In stock: at least one spool with RemainingGrams > 0
+            .Where(f => f.Spools.Any(s => s.RemainingGrams > 0))
+            .OrderBy(f => f.Brand)
+            .ThenBy(f => f.MaterialType.Name)
+            .ThenBy(f => f.Color.Name)
+            .Select(f => new
             {
-                x.Id,
-                x.Brand,
+                f.Id,
+                f.Brand,
                 MaterialType = new
                 {
-                    MaterialTypeId = x.MaterialTypeId,
-                    Name = x.MaterialType.Name
+                    f.MaterialTypeId,
+                    Name = f.MaterialType.Name
                 },
                 Color = new
                 {
-                    ColorId = x.ColorId,
-                    Name = x.Color.Name,
-                    x.Color.Hex
+                    f.ColorId,
+                    Name = f.Color.Name,
+                    f.Color.Hex
+                },
+                Inventory = new
+                {
+                    TotalRemainingGrams = f.Spools
+                        .Where(s => s.RemainingGrams > 0)
+                        .Sum(s => s.RemainingGrams),
+                    AvailableSpools = f.Spools.Count(s => s.RemainingGrams > 0)
                 }
             })
             .ToListAsync();
