@@ -2,7 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
-using PrintIt.Api.DomainLogic;
+using PrintIt.Domain.DomainLogic;
+
 
 
 namespace PrintIt.Api.Controllers;
