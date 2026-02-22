@@ -205,11 +205,16 @@ public async Task<IActionResult> GetSpools(Guid id)
         // 2) Must satisfy RemainingGrams + tolerance >= gramsUsed
         // 3) Prefer Opened, then New
         // 4) Oldest first
+// Choose the "best fit" spool: the smallest RemainingGrams that can still satisfy the usage.
+// This reduces leftover grams and keeps inventory tighter.
         var spool = await _db.FilamentSpools
             .Where(x => x.FilamentId == id)
             .Where(x => x.RemainingGrams > 0)
             .Where(x => x.RemainingGrams + toleranceGrams >= gramsUsed)
-            .OrderBy(x => x.Status == "Opened" ? 0 : 1)
+            // Pick the smallest sufficient spool (min remaining that still covers usage)
+            .OrderBy(x => x.RemainingGrams)
+            // Optional tie-breakers (keep deterministic behavior)
+            .ThenBy(x => x.Status == "Opened" ? 0 : 1)
             .ThenBy(x => x.CreatedAtUtc)
             .FirstOrDefaultAsync();
 

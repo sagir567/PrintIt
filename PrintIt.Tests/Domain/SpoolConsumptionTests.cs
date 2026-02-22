@@ -6,7 +6,7 @@ using PrintIt.Domain.DomainLogic;
 
 using Xunit;
 
-namespace PrintIt.Tests.DomainLogic;
+namespace PrintIt.Tests.Domain;
 
 // Pure unit tests: no DB, no containers, just business rules.
 public class SpoolConsumptionTests
