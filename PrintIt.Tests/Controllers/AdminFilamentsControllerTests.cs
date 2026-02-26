@@ -295,4 +295,177 @@ public async Task Consume_should_use_smallest_sufficient_spool()
 
     // Request DTO for the consume endpoint.
     private sealed record ConsumeRequest(int gramsUsed);
+// ----------------------------
+// GET SPOOLS
+// ----------------------------
+
+[Fact]
+public async Task GetSpools_should_return_not_found_when_filament_does_not_exist()
+{
+    // Arrange
+    using var scope = _api.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await ResetDbAsync(db);
+
+    var missingFilamentId = Guid.NewGuid();
+
+    // Act
+    var resp = await _client.GetAsync($"/api/v1/admin/filaments/{missingFilamentId}/spools");
+
+    // Assert
+    resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+}
+
+[Fact]
+public async Task GetSpools_should_return_spools_ordered_by_created_desc()
+{
+    // Arrange
+    using var scope = _api.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await ResetDbAsync(db);
+
+    var now = DateTime.UtcNow;
+
+    var materialTypeId = Guid.NewGuid();
+    var colorId = Guid.NewGuid();
+
+    db.MaterialTypes.Add(new MaterialType { Id = materialTypeId, Name = "PLA" });
+    db.Colors.Add(new Color { Id = colorId, Name = "Black", Hex = "#000000" });
+
+    var filamentId = Guid.NewGuid();
+
+    var olderSpoolId = Guid.NewGuid();
+    var newerSpoolId = Guid.NewGuid();
+
+    db.Filaments.Add(new Filament
+    {
+        Id = filamentId,
+        Brand = "Prusa",
+        MaterialTypeId = materialTypeId,
+        ColorId = colorId,
+        IsActive = true,
+        CostPerKg = 120m,
+        CreatedAtUtc = now,
+        Spools = new List<FilamentSpool>
+        {
+            new()
+            {
+                Id = olderSpoolId,
+                FilamentId = filamentId,
+                InitialGrams = 1000,
+                RemainingGrams = 800,
+                Status = "Opened",
+                CreatedAtUtc = now.AddDays(-2),
+                LastUsedAtUtc = null
+            },
+            new()
+            {
+                Id = newerSpoolId,
+                FilamentId = filamentId,
+                InitialGrams = 1000,
+                RemainingGrams = 1000,
+                Status = "New",
+                CreatedAtUtc = now.AddDays(-1),
+                LastUsedAtUtc = null
+            }
+        }
+    });
+
+    await db.SaveChangesAsync();
+
+    // Act
+    var resp = await _client.GetAsync($"/api/v1/admin/filaments/{filamentId}/spools");
+
+    // Assert (HTTP)
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    // Assert (payload order)
+    var json = await resp.Content.ReadFromJsonAsync<List<SpoolListItem>>();
+    json.Should().NotBeNull();
+    json!.Count.Should().Be(2);
+
+    // Newest first
+    json[0].Id.Should().Be(newerSpoolId);
+    json[1].Id.Should().Be(olderSpoolId);
+}
+
+// Minimal DTO matching the endpoint response fields we assert on.
+private sealed record SpoolListItem(Guid Id, DateTime CreatedAtUtc);
+
+
+[Fact]
+public async Task GetSpools_should_return_expected_fields_and_values()
+{
+    // Arrange
+    using var scope = _api.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    await ResetDbAsync(db);
+
+    var now = DateTime.UtcNow;
+
+    var materialTypeId = Guid.NewGuid();
+    var colorId = Guid.NewGuid();
+
+    db.MaterialTypes.Add(new MaterialType { Id = materialTypeId, Name = "PLA" });
+    db.Colors.Add(new Color { Id = colorId, Name = "Black", Hex = "#000000" });
+
+    var filamentId = Guid.NewGuid();
+    var spoolId = Guid.NewGuid();
+
+    db.Filaments.Add(new Filament
+    {
+        Id = filamentId,
+        Brand = "Prusa",
+        MaterialTypeId = materialTypeId,
+        ColorId = colorId,
+        IsActive = true,
+        CostPerKg = 120m,
+        CreatedAtUtc = now,
+        Spools = new List<FilamentSpool>
+        {
+            new()
+            {
+                Id = spoolId,
+                FilamentId = filamentId,
+                InitialGrams = 1000,
+                RemainingGrams = 321,
+                Status = "Opened",
+                CreatedAtUtc = now.AddHours(-3),
+                LastUsedAtUtc = now.AddHours(-1)
+            }
+        }
+    });
+
+    await db.SaveChangesAsync();
+
+    // Act
+    var resp = await _client.GetAsync($"/api/v1/admin/filaments/{filamentId}/spools");
+
+    // Assert (HTTP)
+    resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    var json = await resp.Content.ReadFromJsonAsync<List<SpoolDetailsItem>>();
+    json.Should().NotBeNull();
+    json!.Count.Should().Be(1);
+
+    var item = json[0];
+    item.Id.Should().Be(spoolId);
+    item.InitialGrams.Should().Be(1000);
+    item.RemainingGrams.Should().Be(321);
+    item.Status.Should().Be("Opened");
+    item.CreatedAtUtc.Should().BeCloseTo(now.AddHours(-3), precision: TimeSpan.FromSeconds(2));
+    item.LastUsedAtUtc.Should().NotBeNull();
+}
+
+private sealed record SpoolDetailsItem(
+    Guid Id,
+    int InitialGrams,
+    int RemainingGrams,
+    string Status,
+    DateTime CreatedAtUtc,
+    DateTime? LastUsedAtUtc
+);
 }
