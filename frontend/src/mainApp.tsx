@@ -5,6 +5,7 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
 } from 'react-router-dom'
 import './style.css'
 import * as THREE from 'three'
@@ -19,11 +20,11 @@ function AppShell(props: { children: React.ReactNode }) {
       <header className="app-header">
         <div className="logo">PrintIt</div>
         <nav className="nav">
-          <a href="/">Home</a>
-          <a href="/products">Products</a>
-          <a href="/upload">Upload STL</a>
-          <a href="/cart">Cart</a>
-          <a href="/admin/materials">Admin</a>
+          <Link to="/">Home</Link>
+          <Link to="/products">Products</Link>
+          <Link to="/upload">Upload STL</Link>
+          <Link to="/cart">Cart</Link>
+          <Link to="/admin/materials">Admin</Link>
         </nav>
       </header>
       <main className="app-main">{props.children}</main>
@@ -45,12 +46,12 @@ function HomePage() {
             handle the rest. Fast, reliable prints for makers and businesses.
           </p>
           <div className="hero-actions">
-            <a className="btn primary" href="/upload">
+            <Link className="btn primary" to="/upload">
               Upload for print
-            </a>
-            <a className="btn secondary" href="/products">
+            </Link>
+            <Link className="btn secondary" to="/products">
               Browse sample products
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -137,14 +138,14 @@ function ProductGridPage() {
       <div className="product-grid">
         {mockProducts.map((p) => (
           <div key={p.id} className="product-card">
-            <a href={`/products/${p.id}`} className="product-card-link">
+            <Link to={`/products/${p.id}`} className="product-card-link">
               <img src={p.imageUrl} alt={p.name} />
               <div className="product-card-body">
                 <h2>{p.name}</h2>
                 <p className="product-price">From ₪{p.priceFrom}</p>
                 <p className="product-desc">{p.description}</p>
               </div>
-            </a>
+            </Link>
             <button
               className="btn small"
               onClick={() =>
