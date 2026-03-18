@@ -111,4 +111,23 @@ public async Task<IActionResult> Deactivate(Guid id)
         return NoContent();
     }
 
+
+    
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var items = await _db.Colors
+            .OrderBy(c => c.Name)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Hex
+            })
+            .ToListAsync();
+
+        return Ok(items);
+    }
+
+
 }

@@ -120,4 +120,16 @@ public class AdminMaterialTypesController : ControllerBase
         return NoContent();
     }
 
+
+    [HttpGet]
+    public async Task<IActionResult> Get()
+    {
+        var items = await _db.MaterialTypes
+            .IgnoreQueryFilters()
+            .OrderBy(x => x.Name)
+            .Select(x => new { x.Id, x.Name, x.IsActive })
+            .ToListAsync();
+    
+        return Ok(items);
+    }
 }

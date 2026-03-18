@@ -19,10 +19,8 @@ public class FilamentsController : ControllerBase
     public async Task<IActionResult> GetActive()
     {
         var items = await _db.Filaments
-            .AsNoTracking()
-            // Keep explicit active filter even if there is a global query filter (clearer + safer)
-            .Where(f => f.IsActive)
-            // In stock: at least one spool with RemainingGrams > 0
+            // Because of global query filters, this is already "active only".
+            // Now enforce "in stock" (at least 1 spool with RemainingGrams > 0)
             .Where(f => f.Spools.Any(s => s.RemainingGrams > 0))
             .OrderBy(f => f.Brand)
             .ThenBy(f => f.MaterialType.Name)
@@ -44,9 +42,7 @@ public class FilamentsController : ControllerBase
                 },
                 Inventory = new
                 {
-                    TotalRemainingGrams = f.Spools
-                        .Where(s => s.RemainingGrams > 0)
-                        .Sum(s => s.RemainingGrams),
+                    TotalRemainingGrams = f.Spools.Where(s => s.RemainingGrams > 0).Sum(s => s.RemainingGrams),
                     AvailableSpools = f.Spools.Count(s => s.RemainingGrams > 0)
                 }
             })
