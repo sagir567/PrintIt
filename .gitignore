@@ -7,3 +7,22 @@ obj/
 *.log
 **/appsettings.Development.json
 *.sourcelink.json
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+frontend/dist-ssr/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tatus
