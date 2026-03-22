@@ -296,6 +296,9 @@ public async Task Consume_should_use_smallest_sufficient_spool()
     private static async Task ResetDbAsync(AppDbContext db)
     {
         // Clear tables in FK-safe order so tests are isolated and deterministic.
+        db.ProductVariants.RemoveRange(db.ProductVariants);
+        db.Products.RemoveRange(db.Products);
+        db.Categories.RemoveRange(db.Categories);
         db.FilamentSpools.RemoveRange(db.FilamentSpools);
         db.Filaments.RemoveRange(db.Filaments);
         db.Colors.RemoveRange(db.Colors);
@@ -315,6 +318,12 @@ public async Task Consume_should_use_smallest_sufficient_spool()
 
     public void Dispose()
     {
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            ResetDbAsync(db).GetAwaiter().GetResult();
+        }
+
         _client.Dispose();
         _api.Dispose();
     }

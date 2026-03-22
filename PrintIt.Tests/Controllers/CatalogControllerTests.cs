@@ -21,6 +21,81 @@ public sealed class CatalogControllerTests : IClassFixture<PostgresFixture>, IDi
     }
 
     [Fact]
+    public async Task Catalog_products_should_not_duplicate_by_variant_and_should_return_price_from_lowest_active_variant()
+    {
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await ResetDbAsync(db);
+
+            var material = new MaterialType { Id = Guid.NewGuid(), Name = "PLA", BasePricePerKg = 150m, IsActive = true };
+            var colorBlack = new Color { Id = Guid.NewGuid(), Name = "Black", Hex = "#000000", IsActive = true };
+            var toys = new Category { Id = Guid.NewGuid(), Name = "Toys", Slug = "toys", IsActive = true, SortOrder = 1 };
+
+            var product = new Product
+            {
+                Id = Guid.NewGuid(),
+                Title = "Spaceship",
+                Slug = "spaceship",
+                IsActive = true,
+                Categories = new List<Category> { toys },
+                Variants = new List<ProductVariant>
+                {
+                    new()
+                    {
+                        SizeLabel = "L",
+                        MaterialTypeId = material.Id,
+                        ColorId = colorBlack.Id,
+                        WidthMm = 120,
+                        HeightMm = 60,
+                        DepthMm = 40,
+                        WeightGrams = 260,
+                        PriceOffset = 15,
+                        IsActive = true
+                    },
+                    new()
+                    {
+                        SizeLabel = "S",
+                        MaterialTypeId = material.Id,
+                        ColorId = colorBlack.Id,
+                        WidthMm = 80,
+                        HeightMm = 40,
+                        DepthMm = 30,
+                        WeightGrams = 150,
+                        PriceOffset = 5,
+                        IsActive = true
+                    },
+                    new()
+                    {
+                        SizeLabel = "Hidden",
+                        MaterialTypeId = material.Id,
+                        ColorId = colorBlack.Id,
+                        WidthMm = 40,
+                        HeightMm = 20,
+                        DepthMm = 20,
+                        WeightGrams = 50,
+                        PriceOffset = 1,
+                        IsActive = false
+                    }
+                }
+            };
+
+            db.AddRange(material, colorBlack, toys, product);
+            await db.SaveChangesAsync();
+        }
+
+        var resp = await _client.GetAsync("/api/v1/catalog/products?category=toys&sort=name_asc");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await resp.Content.ReadFromJsonAsync<CatalogProductsResponseWithPrice>();
+        body.Should().NotBeNull();
+        body!.Total.Should().Be(1);
+        body.Items.Single().Slug.Should().Be("spaceship");
+
+        // priceFrom = min active variant: (0.150kg * 150) + 5 = 27.5
+        body.Items.Single().PriceFrom.Should().Be(27.5m);
+    }
+
+    [Fact]
     public async Task Catalog_products_should_support_category_and_sorting()
     {
         using (var scope = _api.Services.CreateScope())
@@ -337,6 +412,12 @@ public sealed class CatalogControllerTests : IClassFixture<PostgresFixture>, IDi
 
     public void Dispose()
     {
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            ResetDbAsync(db).GetAwaiter().GetResult();
+        }
+
         _client.Dispose();
         _api.Dispose();
     }
