@@ -36,4 +36,9 @@ public class Product
     /// Variants of this product (size, material, color combinations).
     /// </summary>
     public List<ProductVariant> Variants { get; set; } = new();
+
+    /// <summary>
+    /// Product categories for catalog browsing/filtering.
+    /// </summary>
+    public List<Category> Categories { get; set; } = new();
 }

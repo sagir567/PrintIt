@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     // ===== Tables =====
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<MaterialType> MaterialTypes => Set<MaterialType>();
     public DbSet<Color> Colors => Set<Color>();
     public DbSet<Filament> Filaments => Set<Filament>();
@@ -132,6 +133,32 @@ public class AppDbContext : DbContext
                 .WithOne(x => x.Product)
                 .HasForeignKey(x => x.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasMany(x => x.Categories)
+                .WithMany(x => x.Products)
+                .UsingEntity(j => j.ToTable("ProductCategories"));
+        });
+
+        // Category
+        modelBuilder.Entity<Category>(b =>
+        {
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            b.Property(x => x.Slug)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            b.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            b.HasIndex(x => x.Name).IsUnique();
+            b.HasIndex(x => x.Slug).IsUnique();
+            b.HasIndex(x => x.IsActive);
+            b.HasIndex(x => x.SortOrder);
         });
 
         // ProductVariant
