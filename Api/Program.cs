@@ -61,9 +61,9 @@ async Task SeedDataAsync(AppDbContext db)
     // Seed MaterialTypes
     if (!await db.MaterialTypes.AnyAsync())
     {
-        var pla = new PrintIt.Domain.Entities.MaterialType { Name = "PLA", IsActive = true };
-        var petg = new PrintIt.Domain.Entities.MaterialType { Name = "PETG", IsActive = true };
-        var abs = new PrintIt.Domain.Entities.MaterialType { Name = "ABS", IsActive = true };
+        var pla = new PrintIt.Domain.Entities.MaterialType { Name = "PLA", BasePricePerKg = 150m, IsActive = true };
+        var petg = new PrintIt.Domain.Entities.MaterialType { Name = "PETG", BasePricePerKg = 180m, IsActive = true };
+        var abs = new PrintIt.Domain.Entities.MaterialType { Name = "ABS", BasePricePerKg = 200m, IsActive = true };
         db.MaterialTypes.AddRange(pla, petg, abs);
         await db.SaveChangesAsync();
     }
@@ -126,6 +126,108 @@ async Task SeedDataAsync(AppDbContext db)
             db.FilamentSpools.AddRange(spools);
             await db.SaveChangesAsync();
         }
+    }
+
+    // Seed Categories and Products (minimal but rich enough for UI/demo)
+    if (!await db.Categories.AnyAsync())
+    {
+        db.Categories.AddRange(
+            new PrintIt.Domain.Entities.Category { Name = "Toys", Slug = "toys", Description = "Playful prints", SortOrder = 1, IsActive = true },
+            new PrintIt.Domain.Entities.Category { Name = "Home", Slug = "home", Description = "Home helpers", SortOrder = 2, IsActive = true },
+            new PrintIt.Domain.Entities.Category { Name = "Tools", Slug = "tools", Description = "Workshop aids", SortOrder = 3, IsActive = true }
+        );
+        await db.SaveChangesAsync();
+    }
+
+    if (!await db.Products.AnyAsync())
+    {
+        var catToys = await db.Categories.FirstAsync(c => c.Slug == "toys");
+        var catHome = await db.Categories.FirstAsync(c => c.Slug == "home");
+        var catTools = await db.Categories.FirstAsync(c => c.Slug == "tools");
+
+        var plaId = materials.First(m => m.Name == "PLA").Id;
+        var petgId = materials.First(m => m.Name == "PETG").Id;
+        var absId = materials.First(m => m.Name == "ABS").Id;
+        var black = colors.First(c => c.Name == "Black").Id;
+        var red = colors.First(c => c.Name == "Red").Id;
+        var blue = colors.First(c => c.Name == "Blue").Id;
+        var white = colors.First(c => c.Name == "White").Id;
+
+        var products = new List<PrintIt.Domain.Entities.Product>
+        {
+            new()
+            {
+                Title = "Robot Stand",
+                Slug = "robot-stand",
+                Description = "Display and charge your desktop robot with cable routing.",
+                MainImageUrl = "https://placehold.co/800x600/1e1e2f/ffffff?text=Robot+Stand",
+                IsActive = true,
+                Categories = new List<PrintIt.Domain.Entities.Category> { catToys },
+                Variants = new List<PrintIt.Domain.Entities.ProductVariant>
+                {
+                    new() { SizeLabel = "S", MaterialTypeId = plaId, ColorId = black, WidthMm = 80, HeightMm = 60, DepthMm = 40, WeightGrams = 220, PriceOffset = 8, IsActive = true },
+                    new() { SizeLabel = "M", MaterialTypeId = plaId, ColorId = red, WidthMm = 100, HeightMm = 80, DepthMm = 50, WeightGrams = 320, PriceOffset = 11, IsActive = true }
+                }
+            },
+            new()
+            {
+                Title = "Mini Car",
+                Slug = "mini-car",
+                Description = "Snap-fit mini car for desk racing.",
+                MainImageUrl = "https://placehold.co/800x600/1b3c59/ffffff?text=Mini+Car",
+                IsActive = true,
+                Categories = new List<PrintIt.Domain.Entities.Category> { catToys },
+                Variants = new List<PrintIt.Domain.Entities.ProductVariant>
+                {
+                    new() { SizeLabel = "S", MaterialTypeId = petgId, ColorId = blue, WidthMm = 50, HeightMm = 30, DepthMm = 25, WeightGrams = 120, PriceOffset = 5, IsActive = true },
+                    new() { SizeLabel = "M", MaterialTypeId = petgId, ColorId = red, WidthMm = 70, HeightMm = 40, DepthMm = 30, WeightGrams = 180, PriceOffset = 7, IsActive = true }
+                }
+            },
+            new()
+            {
+                Title = "Cable Clip Set",
+                Slug = "cable-clip",
+                Description = "Pack of cable clips to tidy your workspace.",
+                MainImageUrl = "https://placehold.co/800x600/123524/ffffff?text=Cable+Clip",
+                IsActive = true,
+                Categories = new List<PrintIt.Domain.Entities.Category> { catHome },
+                Variants = new List<PrintIt.Domain.Entities.ProductVariant>
+                {
+                    new() { SizeLabel = "S", MaterialTypeId = plaId, ColorId = white, WidthMm = 35, HeightMm = 15, DepthMm = 12, WeightGrams = 40, PriceOffset = 2, IsActive = true },
+                    new() { SizeLabel = "M", MaterialTypeId = plaId, ColorId = black, WidthMm = 45, HeightMm = 18, DepthMm = 14, WeightGrams = 55, PriceOffset = 3, IsActive = true }
+                }
+            },
+            new()
+            {
+                Title = "Wall Hook",
+                Slug = "wall-hook",
+                Description = "Sturdy wall hook with hidden screw mount.",
+                MainImageUrl = "https://placehold.co/800x600/4a2c2a/ffffff?text=Wall+Hook",
+                IsActive = true,
+                Categories = new List<PrintIt.Domain.Entities.Category> { catHome },
+                Variants = new List<PrintIt.Domain.Entities.ProductVariant>
+                {
+                    new() { SizeLabel = "S", MaterialTypeId = petgId, ColorId = black, WidthMm = 60, HeightMm = 70, DepthMm = 20, WeightGrams = 90, PriceOffset = 4, IsActive = true }
+                }
+            },
+            new()
+            {
+                Title = "Wrench Holder",
+                Slug = "wrench-holder",
+                Description = "Wall-mount organizer for wrenches and small tools.",
+                MainImageUrl = "https://placehold.co/800x600/2f2f2f/ffffff?text=Wrench+Holder",
+                IsActive = true,
+                Categories = new List<PrintIt.Domain.Entities.Category> { catTools },
+                Variants = new List<PrintIt.Domain.Entities.ProductVariant>
+                {
+                    new() { SizeLabel = "S", MaterialTypeId = absId, ColorId = black, WidthMm = 100, HeightMm = 30, DepthMm = 25, WeightGrams = 180, PriceOffset = 6, IsActive = true },
+                    new() { SizeLabel = "M", MaterialTypeId = absId, ColorId = blue, WidthMm = 120, HeightMm = 35, DepthMm = 28, WeightGrams = 240, PriceOffset = 8, IsActive = true }
+                }
+            }
+        };
+
+        db.Products.AddRange(products);
+        await db.SaveChangesAsync();
     }
 }
 

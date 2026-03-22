@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     // ===== Tables =====
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<MaterialType> MaterialTypes => Set<MaterialType>();
     public DbSet<Color> Colors => Set<Color>();
     public DbSet<Filament> Filaments => Set<Filament>();
@@ -35,8 +36,12 @@ public class AppDbContext : DbContext
                 .IsRequired()
                 .HasMaxLength(50);
 
+            b.Property(x => x.BasePricePerKg)
+                .HasPrecision(18, 2)
+                .IsRequired();
+
             b.HasIndex(x => x.Name).IsUnique();
-            b.HasQueryFilter(x => x.IsActive); // Global filter to exclude inactive items by default.
+            // Note: IsActive filtering must be done explicitly in queries, not via global filter
         });
 
         // Color
@@ -107,17 +112,53 @@ public class AppDbContext : DbContext
         {
             b.HasKey(x => x.Id);
 
-            b.Property(x => x.Name)
+            b.Property(x => x.Title)
                 .IsRequired()
                 .HasMaxLength(200);
 
-            b.Property(x => x.BasePrice)
-                .HasPrecision(18, 2);
+            b.Property(x => x.Slug)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            b.Property(x => x.Description)
+                .HasMaxLength(2000);
+
+            b.Property(x => x.MainImageUrl)
+                .HasMaxLength(500);
+
+            b.HasIndex(x => x.Slug).IsUnique();
+            b.HasIndex(x => x.IsActive);
 
             b.HasMany(x => x.Variants)
                 .WithOne(x => x.Product)
                 .HasForeignKey(x => x.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasMany(x => x.Categories)
+                .WithMany(x => x.Products)
+                .UsingEntity(j => j.ToTable("ProductCategories"));
+        });
+
+        // Category
+        modelBuilder.Entity<Category>(b =>
+        {
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            b.Property(x => x.Slug)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            b.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            b.HasIndex(x => x.Name).IsUnique();
+            b.HasIndex(x => x.Slug).IsUnique();
+            b.HasIndex(x => x.IsActive);
+            b.HasIndex(x => x.SortOrder);
         });
 
         // ProductVariant
@@ -126,10 +167,25 @@ public class AppDbContext : DbContext
             b.HasKey(x => x.Id);
 
             b.Property(x => x.SizeLabel)
+                .IsRequired()
                 .HasMaxLength(50);
 
-            b.Property(x => x.PriceDelta)
-                .HasPrecision(18, 2);
+            b.Property(x => x.WidthMm)
+                .IsRequired();
+
+            b.Property(x => x.HeightMm)
+                .IsRequired();
+
+            b.Property(x => x.DepthMm)
+                .IsRequired();
+
+            b.Property(x => x.WeightGrams)
+                .IsRequired();
+
+            b.Property(x => x.PriceOffset)
+                .HasPrecision(18, 2)
+                .IsRequired();
+            // Note: PriceOffset must be >= 0 (markup only). Validation handled at application level.
 
             b.HasOne(x => x.MaterialType)
                 .WithMany()
@@ -141,13 +197,16 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ColorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Unique constraint: a product cannot have two variants with the same combination
             b.HasIndex(x => new
             {
                 x.ProductId,
+                x.SizeLabel,
                 x.MaterialTypeId,
-                x.ColorId,
-                x.SizeLabel
+                x.ColorId
             }).IsUnique();
+
+            b.HasIndex(x => x.IsActive);
         });
     }
 }
