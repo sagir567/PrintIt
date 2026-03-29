@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Domain", "PrintIt.Domain\PrintIt.Domain.csproj", "{98C5F520-7BBE-4E00-B53D-CA9D43C3DE78}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Domain", "Domain\PrintIt.Domain.csproj", "{98C5F520-7BBE-4E00-B53D-CA9D43C3DE78}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Infrastructure", "PrintIt.Infrastructure\PrintIt.Infrastructure.csproj", "{6189B72C-00E1-4C51-AF50-102A71A9AA9B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Infrastructure", "Infrastructure\PrintIt.Infrastructure.csproj", "{6189B72C-00E1-4C51-AF50-102A71A9AA9B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Tests", "PrintIt.Tests\PrintIt.Tests.csproj", "{9FC1C6C1-34F6-40AD-BCCA-FF3066B20FBA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Tests", "Tests\PrintIt.Tests.csproj", "{9FC1C6C1-34F6-40AD-BCCA-FF3066B20FBA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintIt.Api", "Api\PrintIt.Api.csproj", "{B0829186-6A11-4CFF-887F-0E8A18BF3197}"
 EndProject

@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PrintIt.Infrastructure\PrintIt.Infrastructure.csproj" />
+    <ProjectReference Include="..\Infrastructure\PrintIt.Infrastructure.csproj" />
     <ProjectReference Include="..\Api\PrintIt.Api.csproj" />
   </ItemGroup>
 

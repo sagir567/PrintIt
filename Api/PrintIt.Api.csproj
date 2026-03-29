@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PrintIt.Domain\PrintIt.Domain.csproj" />
-    <ProjectReference Include="..\PrintIt.Infrastructure\PrintIt.Infrastructure.csproj" />
+    <ProjectReference Include="..\Domain\PrintIt.Domain.csproj" />
+    <ProjectReference Include="..\Infrastructure\PrintIt.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
