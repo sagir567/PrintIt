@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     }
 
     // ===== Tables =====
+    public DbSet<Store> Stores => Set<Store>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<MaterialType> MaterialTypes => Set<MaterialType>();
@@ -25,6 +26,22 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Store>(b =>
+        {
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            b.Property(x => x.Slug)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            b.HasIndex(x => x.Slug).IsUnique();
+            b.HasIndex(x => x.IsActive);
+        });
+
         // MaterialType
         modelBuilder.Entity<MaterialType>(b =>
         {
@@ -35,7 +52,12 @@ public class AppDbContext : DbContext
                 .IsRequired()
                 .HasMaxLength(50);
 
-            b.HasIndex(x => x.Name).IsUnique();
+            b.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => new { x.StoreId, x.Name }).IsUnique();
             b.HasQueryFilter(x => x.IsActive); // Global filter to exclude inactive items by default.
         });
 
@@ -51,7 +73,12 @@ public class AppDbContext : DbContext
             b.Property(x => x.Hex)
                 .HasMaxLength(7);
 
-            b.HasIndex(x => x.Name).IsUnique();
+            b.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => new { x.StoreId, x.Name }).IsUnique();
         });
 
         // Filament (internal SKU)
@@ -66,6 +93,11 @@ public class AppDbContext : DbContext
             b.Property(x => x.CostPerKg)
                 .HasPrecision(18, 2);
 
+            b.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             b.HasOne(x => x.MaterialType)
                 .WithMany()
                 .HasForeignKey(x => x.MaterialTypeId)
@@ -76,7 +108,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ColorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            b.HasIndex(x => new { x.MaterialTypeId, x.ColorId, x.Brand })
+            b.HasIndex(x => new { x.StoreId, x.MaterialTypeId, x.ColorId, x.Brand })
                 .IsUnique();
         });
         modelBuilder.Entity<FilamentSpool>(b =>
@@ -113,6 +145,13 @@ public class AppDbContext : DbContext
 
             b.Property(x => x.BasePrice)
                 .HasPrecision(18, 2);
+
+            b.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => new { x.StoreId, x.Name }).IsUnique();
 
             b.HasMany(x => x.Variants)
                 .WithOne(x => x.Product)
