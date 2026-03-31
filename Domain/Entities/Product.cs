@@ -4,6 +4,9 @@ public class Product
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public Guid StoreId { get; set; } = StoreConstants.BootstrapStoreId;
+    public Store Store { get; set; } = null!;
+
     /// <summary>
     /// Display name for the product (e.g., "Desk Cable Organizer")
     /// </summary>

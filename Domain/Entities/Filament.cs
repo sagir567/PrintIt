@@ -4,6 +4,9 @@ public class Filament
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public Guid StoreId { get; set; } = StoreConstants.BootstrapStoreId;
+    public Store Store { get; set; } = null!;
+
     public Guid MaterialTypeId { get; set; }
     public MaterialType MaterialType { get; set; } = null!;
 

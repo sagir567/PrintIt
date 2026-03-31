@@ -4,6 +4,9 @@ public class MaterialType
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public Guid StoreId { get; set; } = StoreConstants.BootstrapStoreId;
+    public Store Store { get; set; } = null!;
+
     /// <summary>
     /// Material name (e.g., "PLA", "PETG", "ABS")
     /// </summary>
