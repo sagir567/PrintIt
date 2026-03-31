@@ -68,9 +68,9 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Products_StoreId_Name",
+                name: "IX_Products_StoreId_Slug",
                 table: "Products",
-                columns: new[] { "StoreId", "Name" },
+                columns: new[] { "StoreId", "Slug" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -163,7 +163,7 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                 name: "Stores");
 
             migrationBuilder.DropIndex(
-                name: "IX_Products_StoreId_Name",
+                name: "IX_Products_StoreId_Slug",
                 table: "Products");
 
             migrationBuilder.DropIndex(

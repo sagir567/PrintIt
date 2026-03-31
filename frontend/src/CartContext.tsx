@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 export type CartItem = {
   id: string
   type: 'product' | 'stl'
   name: string
+  details?: string
+  imageUrl?: string
   price: number
   quantity: number
 }
@@ -18,13 +20,27 @@ type CartContextValue = {
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined)
+const CART_STORAGE_KEY = 'printit.cart.v1'
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
+  const [items, setItems] = useState<CartItem[]>(() => {
+    try {
+      const raw = window.localStorage.getItem(CART_STORAGE_KEY)
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as CartItem[]
+      if (!Array.isArray(parsed)) return []
+      return parsed
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items))
+  }, [items])
 
   const value = useMemo<CartContextValue>(() => {
     const addItem = (item: Omit<CartItem, 'quantity'>, quantity = 1) => {
-      console.log('Adding item:', item, quantity)
       setItems((prev) => {
         const existing = prev.find((i) => i.id === item.id && i.type === item.type)
         if (existing) {
@@ -63,4 +79,6 @@ export function useCart() {
   }
   return ctx
 }
+
+
 

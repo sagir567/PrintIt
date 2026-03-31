@@ -19,6 +19,11 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
     - name: Restore dependencies
       run: dotnet restore PrintIt.sln
 
@@ -27,3 +32,11 @@ jobs:
 
     - name: Run tests
       run: dotnet test PrintIt.sln --configuration Release --no-build --verbosity normal
+
+    - name: Install frontend dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm run build

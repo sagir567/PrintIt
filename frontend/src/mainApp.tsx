@@ -5,6 +5,8 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
+  useParams,
 } from 'react-router-dom'
 import './style.css'
 import * as THREE from 'three'
@@ -19,11 +21,11 @@ function AppShell(props: { children: React.ReactNode }) {
       <header className="app-header">
         <div className="logo">PrintIt</div>
         <nav className="nav">
-          <a href="/">Home</a>
-          <a href="/products">Products</a>
-          <a href="/upload">Upload STL</a>
-          <a href="/cart">Cart</a>
-          <a href="/admin/materials">Admin</a>
+          <Link to="/">Home</Link>
+          <Link to="/products">Products</Link>
+          <Link to="/upload">Upload STL</Link>
+          <Link to="/cart">Cart</Link>
+          <Link to="/admin/materials">Admin</Link>
         </nav>
       </header>
       <main className="app-main">{props.children}</main>
@@ -94,73 +96,133 @@ type FilamentOption = {
 
 type ProductCardProps = {
   id: string
-  name: string
+  title: string
+  slug: string
   priceFrom: number
   description: string
-  imageUrl: string
+  imageUrl: string | null
+  categories: { id: string; name: string; slug: string }[]
 }
 
-const mockProducts: ProductCardProps[] = [
-  {
-    id: 'sample-1',
-    name: 'Desk Cable Organizer',
-    priceFrom: 39,
-    description: 'Keep your cables tidy with a customizable desk organizer.',
-    imageUrl: 'https://via.placeholder.com/400x300?text=Organizer',
-  },
-  {
-    id: 'sample-2',
-    name: 'Headphone Stand',
-    priceFrom: 59,
-    description: 'Minimal stand for headphones, printed in PLA or PETG.',
-    imageUrl: 'https://via.placeholder.com/400x300?text=Headphone+Stand',
-  },
-  {
-    id: 'sample-3',
-    name: 'Wall Hook Set',
-    priceFrom: 29,
-    description: 'Strong and simple hooks for everyday use.',
-    imageUrl: 'https://via.placeholder.com/400x300?text=Wall+Hooks',
-  },
-]
-
 function ProductGridPage() {
-  const { addItem } = useCart()
+  const [products, setProducts] = useState<ProductCardProps[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([])
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('newest')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('http://localhost:5051/api/v1/catalog/categories')
+      .then((res) => res.json())
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch((err) => console.error('Failed to load categories', err))
+  }, [])
+
+  useEffect(() => {
+    const q = new URLSearchParams()
+    q.set('sort', sort)
+    q.set('page', '1')
+    q.set('pageSize', '50')
+    if (selectedCategory) q.set('category', selectedCategory)
+    if (search.trim()) q.set('q', search.trim())
+
+    setLoading(true)
+    fetch(`http://localhost:5051/api/v1/catalog/products?${q.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const items = Array.isArray(data?.items) ? data.items : []
+        const mapped: ProductCardProps[] = items.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          slug: p.slug,
+          priceFrom: p.priceFrom,
+          description: p.description ?? '',
+          imageUrl: p.mainImageUrl ?? null,
+          categories: Array.isArray(p.categories) ? p.categories : [],
+        }))
+        setProducts(mapped)
+      })
+      .catch((err) => {
+        console.error('Failed to load products', err)
+        setProducts([])
+      })
+      .finally(() => setLoading(false))
+  }, [selectedCategory, search, sort])
 
   return (
     <div className="page">
-      <h1>Sample products for printing</h1>
+      <h1>Catalog products</h1>
       <p className="page-intro">
-        These are example items you can order directly. For custom models, use
-        the Upload STL page.
+        Browse products from our database catalog. Use search, category and sort
+        to find what you need.
       </p>
+
+      <div className="field-row" style={{ marginBottom: 16 }}>
+        <div className="field">
+          <label htmlFor="catalog-search">Search</label>
+          <input
+            id="catalog-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search title or description..."
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="catalog-category">Category</label>
+          <select
+            id="catalog-category"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="catalog-sort">Sort</label>
+          <select id="catalog-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="newest">Newest</option>
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+            <option value="price_asc">Price low-high</option>
+            <option value="price_desc">Price high-low</option>
+          </select>
+        </div>
+      </div>
+
+      {loading && <p>Loading catalog...</p>}
+      {!loading && products.length === 0 && <p>No products found.</p>}
+
       <div className="product-grid">
-        {mockProducts.map((p) => (
+        {products.map((p) => (
           <div key={p.id} className="product-card">
-            <a href={`/products/${p.id}`} className="product-card-link">
-              <img src={p.imageUrl} alt={p.name} />
-              <div className="product-card-body">
-                <h2>{p.name}</h2>
-                <p className="product-price">From ₪{p.priceFrom}</p>
-                <p className="product-desc">{p.description}</p>
+            <Link to={`/products/${p.slug}`} className="product-card-link product-card-tile">
+              <div className="product-card-image-wrap">
+                <img
+                  src={p.imageUrl ?? 'https://placehold.co/600x400/202530/FFFFFF?text=PrintIt+Product'}
+                  alt={p.title}
+                />
+                <div className="product-card-overlay">
+                  <h2>{p.title}</h2>
+                  <p className="product-price">From ₪{p.priceFrom.toFixed(2)}</p>
+                  <p className="product-desc">{p.description}</p>
+                  {p.categories.length > 0 && (
+                    <div className="pill-row">
+                      {p.categories.map((c) => (
+                        <span key={c.id} className="pill">
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </a>
-            <button
-              className="btn small"
-              onClick={() =>
-                addItem(
-                  {
-                    id: p.id,
-                    type: 'product',
-                    name: p.name,
-                    price: p.priceFrom,
-                  },
-                  1,
-                )
-              }
-            >
-              Add to cart
-            </button>
+            </Link>
           </div>
         ))}
       </div>
@@ -169,13 +231,248 @@ function ProductGridPage() {
 }
 
 function ProductDetailsPage() {
+  const { addItem } = useCart()
+  const { id } = useParams()
+  const [product, setProduct] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedSize, setSelectedSize] = useState<string>('')
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>('')
+  const [selectedColorId, setSelectedColorId] = useState<string>('')
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    fetch(`http://localhost:5051/api/v1/catalog/products/${id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setProduct(data))
+      .catch((err) => {
+        console.error('Failed to load product details', err)
+        setProduct(null)
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  useEffect(() => {
+    if (!product || !Array.isArray(product.variants) || product.variants.length === 0) return
+    const first = product.variants[0]
+    setSelectedSize(first.sizeLabel)
+    setSelectedMaterialId(first.materialType?.materialTypeId ?? '')
+    setSelectedColorId(first.color?.colorId ?? '')
+  }, [product])
+
+  const variants: any[] = Array.isArray(product?.variants) ? product.variants : []
+  const sizeOptions = useMemo(() => {
+    const unique = new Map<string, true>()
+    variants.forEach((v) => unique.set(v.sizeLabel, true))
+    return Array.from(unique.keys())
+  }, [variants])
+
+  const materialOptions = useMemo(() => {
+    const filtered = variants.filter((v) => (!selectedSize ? true : v.sizeLabel === selectedSize))
+    const unique = new Map<string, { id: string; name: string }>()
+    filtered.forEach((v) => {
+      const id = v.materialType?.materialTypeId
+      if (!id) return
+      unique.set(id, { id, name: v.materialType?.name ?? 'Material' })
+    })
+    return Array.from(unique.values())
+  }, [variants, selectedSize])
+
+  const colorOptions = useMemo(() => {
+    const filtered = variants.filter(
+      (v) =>
+        v.sizeLabel === selectedSize &&
+        (!selectedMaterialId || v.materialType?.materialTypeId === selectedMaterialId),
+    )
+    const unique = new Map<string, { id: string; name: string; hex?: string }>()
+    filtered.forEach((v) => {
+      const id = v.color?.colorId
+      if (!id) return
+      unique.set(id, { id, name: v.color?.name ?? 'Color', hex: v.color?.hex })
+    })
+    return Array.from(unique.values())
+  }, [variants, selectedSize, selectedMaterialId])
+
+  useEffect(() => {
+    if (materialOptions.length === 0) {
+      setSelectedMaterialId('')
+      return
+    }
+
+    if (!materialOptions.some((m) => m.id === selectedMaterialId)) {
+      setSelectedMaterialId(materialOptions[0].id)
+    }
+  }, [materialOptions, selectedMaterialId])
+
+  useEffect(() => {
+    if (colorOptions.length === 0) {
+      setSelectedColorId('')
+      return
+    }
+
+    if (!colorOptions.some((c) => c.id === selectedColorId)) {
+      setSelectedColorId(colorOptions[0].id)
+    }
+  }, [colorOptions, selectedColorId])
+
+  const selectedVariant = useMemo(() => {
+    return variants.find(
+      (v) =>
+        v.sizeLabel === selectedSize &&
+        v.materialType?.materialTypeId === selectedMaterialId &&
+        v.color?.colorId === selectedColorId,
+    )
+  }, [variants, selectedSize, selectedMaterialId, selectedColorId])
+
+  const selectedVariantPrice = selectedVariant ? Number(selectedVariant.price) : null
+  const selectedVariantLabel = selectedVariant
+    ? `${selectedVariant.sizeLabel} · ${selectedVariant.materialType?.name} · ${selectedVariant.color?.name}`
+    : null
+
+  const displayPrice = selectedVariant ? Number(selectedVariant.price).toFixed(2) : '—'
+  const heroImage = product?.mainImageUrl ?? 'https://placehold.co/800x600/202530/FFFFFF?text=PrintIt+Product'
+
+  if (loading) {
+    return (
+      <div className="page">
+        <h1>Product details</h1>
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
+  if (!product) {
+    return (
+      <div className="page">
+        <h1>Product details</h1>
+        <p>Product not found.</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="page">
-      <h1>Product details</h1>
-      <p>
-        In a later step we will load real product data from the backend and let
-        users add it to the cart.
-      </p>
+    <div className="page product-detail">
+      <div className="product-detail-hero">
+        <img src={heroImage} alt={product.title} />
+      </div>
+      <div className="product-detail-body">
+        <div className="product-detail-header">
+          <h1>{product.title}</h1>
+          <p className="product-detail-price">₪{displayPrice}</p>
+        </div>
+        <p className="product-detail-description">{product.description}</p>
+
+        {Array.isArray(product.categories) && product.categories.length > 0 && (
+          <div className="pill-row" style={{ marginBottom: 12 }}>
+            {product.categories.map((c: any) => (
+              <span key={c.id} className="pill">
+                {c.name}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="selector-row">
+          <div className="field">
+            <label>Size</label>
+            <select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
+              {sizeOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>Material</label>
+            <select
+              value={selectedMaterialId}
+              onChange={(e) => setSelectedMaterialId(e.target.value)}
+              disabled={materialOptions.length === 0}
+            >
+              {materialOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>Color</label>
+            <select
+              value={selectedColorId}
+              onChange={(e) => setSelectedColorId(e.target.value)}
+              disabled={colorOptions.length === 0}
+            >
+              {colorOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="variant-summary">
+          {selectedVariant ? (
+            <>
+              <div>
+                <strong>Selected:</strong> {selectedVariant.sizeLabel} · {selectedVariant.materialType?.name} ·{' '}
+                {selectedVariant.color?.name}
+              </div>
+              <div className="variant-meta">
+                {selectedVariant.widthMm}×{selectedVariant.heightMm}×{selectedVariant.depthMm} mm ·{' '}
+                {selectedVariant.weightGrams} g
+              </div>
+              <div className="variant-price">₪{Number(selectedVariant.price).toFixed(2)}</div>
+            </>
+          ) : (
+            <div className="status-error">No variant available for this selection.</div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          {selectedVariantLabel && (
+            <p className="status-message" style={{ marginBottom: 8 }}>
+              Add to cart: {product.title} ({selectedVariantLabel})
+            </p>
+          )}
+          <button
+            className="btn primary"
+            disabled={!selectedVariant || selectedVariantPrice == null}
+            onClick={() => {
+              if (!selectedVariant || selectedVariantPrice == null) return
+
+              addItem(
+                {
+                  id: selectedVariant.id,
+                  type: 'product',
+                  name: `${product.title} (${selectedVariant.sizeLabel} · ${selectedVariant.materialType?.name} · ${selectedVariant.color?.name})`,
+                  details: selectedVariantLabel ?? undefined,
+                  imageUrl: heroImage,
+                  price: selectedVariantPrice,
+                },
+                1,
+              )
+            }}
+          >
+            Add to cart
+          </button>
+        </div>
+
+        <div className="variant-list">
+          <h3>Available variants</h3>
+          <ul>
+            {variants.map((v) => (
+              <li key={v.id}>
+                {v.sizeLabel} · {v.materialType?.name} · {v.color?.name} · ₪{Number(v.price).toFixed(2)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }
@@ -440,6 +737,10 @@ function UploadQuoteSummary({
               id: `stl-${Date.now()}`,
               type: 'stl',
               name: fileName ?? 'Custom STL model',
+              details: selectedFilament
+                ? `${selectedFilament.materialType.name} · ${selectedFilament.color.name}`
+                : undefined,
+              imageUrl: 'https://placehold.co/400x300/1e1e2f/FFFFFF?text=STL+Job',
               price,
             },
             1,
@@ -454,6 +755,7 @@ function UploadQuoteSummary({
 
 function CartPage() {
   const { items, subtotal, removeItem, updateQuantity, clear } = useCart()
+  const total = subtotal
 
   return (
     <div className="page">
@@ -470,39 +772,67 @@ function CartPage() {
             {items.map((item) => (
               <li key={item.id} className="cart-item">
                 <div className="cart-item-main">
-                  <h2>{item.name}</h2>
-                  <p className="cart-item-meta">
-                    Type: {item.type === 'product' ? 'Product' : 'Custom STL job'}
-                  </p>
+                  <div className="cart-item-thumb">
+                    <img
+                      src={
+                        item.imageUrl ??
+                        (item.type === 'product'
+                          ? 'https://placehold.co/300x220/202530/FFFFFF?text=Product'
+                          : 'https://placehold.co/300x220/1e1e2f/FFFFFF?text=STL+Job')
+                      }
+                      alt={item.name}
+                    />
+                  </div>
+                  <div className="cart-item-info">
+                    <h2>{item.name}</h2>
+                    <p className="cart-item-meta">
+                      {item.details ??
+                        (item.type === 'product' ? 'Configured product' : 'Custom STL print job')}
+                    </p>
+                    <p className="cart-item-meta">Unit: ₪{item.price.toFixed(2)}</p>
+                  </div>
                 </div>
                 <div className="cart-item-controls">
-                  <span>₪{item.price}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
-                  />
-                  <button
-                    className="btn small secondary"
-                    onClick={() => removeItem(item.id)}
-                  >
+                  <label>
+                    Qty
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
+                    />
+                  </label>
+                  <span className="cart-line-total">₪{(item.price * item.quantity).toFixed(2)}</span>
+                  <button className="btn small secondary" onClick={() => removeItem(item.id)}>
                     Remove
                   </button>
                 </div>
               </li>
             ))}
           </ul>
-          <div className="cart-summary">
-            <p>
-              Subtotal: <strong>₪{subtotal.toFixed(2)}</strong>
-            </p>
-            <button className="btn secondary" onClick={clear}>
-              Clear cart
-            </button>
-            <button className="btn primary" onClick={() => alert('Checkout coming soon')}>
-              Proceed to checkout
-            </button>
+
+          <div className="cart-summary-card">
+            <div className="cart-summary-row">
+              <span>Subtotal</span>
+              <strong>₪{subtotal.toFixed(2)}</strong>
+            </div>
+            <div className="cart-summary-row">
+              <span>Shipping</span>
+              <span>Calculated at checkout</span>
+            </div>
+            <div className="cart-summary-row cart-summary-total">
+              <span>Total</span>
+              <strong>₪{total.toFixed(2)}</strong>
+            </div>
+
+            <div className="cart-summary-actions">
+              <button className="btn secondary" onClick={clear}>
+                Clear cart
+              </button>
+              <button className="btn primary" onClick={() => alert('Checkout is not implemented yet')}>
+                Pay now
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -536,4 +866,10 @@ ReactDOM.createRoot(document.getElementById('app') as HTMLElement).render(
     <App />
   </React.StrictMode>,
 )
+
+
+
+
+
+
 
