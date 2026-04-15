@@ -34,6 +34,175 @@ public sealed class AdminProductsControllerTests : IClassFixture<PostgresFixture
     }
 
     [Fact]
+    public async Task Admin_products_should_support_search_and_phase1_sort_modes()
+    {
+        Guid plaId;
+        Guid blackId;
+
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await ResetDbAsync(db);
+
+            plaId = Guid.NewGuid();
+            blackId = Guid.NewGuid();
+
+            db.MaterialTypes.Add(new MaterialType
+            {
+                Id = plaId,
+                StoreId = StoreConstants.BootstrapStoreId,
+                Name = "PLA",
+                BasePricePerKg = 120m,
+                IsActive = true
+            });
+
+            db.Colors.Add(new Color
+            {
+                Id = blackId,
+                StoreId = StoreConstants.BootstrapStoreId,
+                Name = "Black",
+                Hex = "#000000",
+                IsActive = true
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        var alphaId = await CreateProductAsync("Alpha Holder", "alpha-holder", true, plaId, blackId);
+        var betaId = await CreateProductAsync("Beta Stand", "beta-stand", false, plaId, blackId);
+        var gammaId = await CreateProductAsync("Gamma Rack", "gamma-rack", true, plaId, blackId);
+
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var alpha = await db.Products.IgnoreQueryFilters().SingleAsync(x => x.Id == alphaId);
+            var beta = await db.Products.IgnoreQueryFilters().SingleAsync(x => x.Id == betaId);
+            var gamma = await db.Products.IgnoreQueryFilters().SingleAsync(x => x.Id == gammaId);
+
+            alpha.CreatedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            beta.CreatedAtUtc = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+            gamma.CreatedAtUtc = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc);
+
+            await db.SaveChangesAsync();
+        }
+
+        var newestItems = await _client.GetFromJsonAsync<List<AdminProductListItemResponse>>("/api/v1/admin/products?sort=newest");
+        newestItems.Should().NotBeNull();
+        newestItems!.Select(x => x.Title).Should().ContainInOrder("Gamma Rack", "Beta Stand", "Alpha Holder");
+
+        var alphabeticalItems = await _client.GetFromJsonAsync<List<AdminProductListItemResponse>>("/api/v1/admin/products?sort=alphabetical");
+        alphabeticalItems.Should().NotBeNull();
+        alphabeticalItems!.Select(x => x.Title).Should().ContainInOrder("Alpha Holder", "Beta Stand", "Gamma Rack");
+
+        var activeFirstItems = await _client.GetFromJsonAsync<List<AdminProductListItemResponse>>("/api/v1/admin/products?sort=active_first");
+        activeFirstItems.Should().NotBeNull();
+        activeFirstItems!.First().IsActive.Should().BeTrue();
+        activeFirstItems.Last().IsActive.Should().BeFalse();
+
+        var inactiveFirstItems = await _client.GetFromJsonAsync<List<AdminProductListItemResponse>>("/api/v1/admin/products?sort=inactive_first");
+        inactiveFirstItems.Should().NotBeNull();
+        inactiveFirstItems!.First().IsActive.Should().BeFalse();
+
+        var searchItems = await _client.GetFromJsonAsync<List<AdminProductListItemResponse>>("/api/v1/admin/products?q=beta");
+        searchItems.Should().NotBeNull();
+        searchItems!.Should().HaveCount(1);
+        searchItems[0].Title.Should().Be("Beta Stand");
+    }
+
+    [Fact]
+    public async Task Admin_product_details_endpoint_should_return_single_product_for_current_store()
+    {
+        Guid plaId;
+        Guid blackId;
+        Guid categoryId;
+
+        using (var scope = _api.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await ResetDbAsync(db);
+
+            plaId = Guid.NewGuid();
+            blackId = Guid.NewGuid();
+            categoryId = Guid.NewGuid();
+
+            db.MaterialTypes.Add(new MaterialType
+            {
+                Id = plaId,
+                StoreId = StoreConstants.BootstrapStoreId,
+                Name = "PLA",
+                BasePricePerKg = 110m,
+                IsActive = true
+            });
+
+            db.Colors.Add(new Color
+            {
+                Id = blackId,
+                StoreId = StoreConstants.BootstrapStoreId,
+                Name = "Black",
+                Hex = "#000000",
+                IsActive = true
+            });
+
+            db.Categories.Add(new Category
+            {
+                Id = categoryId,
+                StoreId = StoreConstants.BootstrapStoreId,
+                Name = "Desk",
+                Slug = "desk",
+                IsActive = true,
+                SortOrder = 1
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        var createResp = await _client.PostAsJsonAsync("/api/v1/admin/products", new
+        {
+            title = "Desk Tray",
+            slug = "desk-tray",
+            description = "Useful tray",
+            mainImageUrl = "https://img.example.com/tray.png",
+            isActive = true,
+            categoryIds = new[] { categoryId },
+            variants = new[]
+            {
+                new
+                {
+                    sizeLabel = "Standard",
+                    materialTypeId = plaId,
+                    colorId = blackId,
+                    widthMm = 120,
+                    heightMm = 18,
+                    depthMm = 80,
+                    weightGrams = 95,
+                    priceOffset = 7,
+                    isActive = true
+                }
+            }
+        });
+
+        createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await createResp.Content.ReadFromJsonAsync<CreatedProductResponse>();
+        created.Should().NotBeNull();
+
+        var detailsResp = await _client.GetAsync($"/api/v1/admin/products/{created!.Id}");
+        detailsResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var details = await detailsResp.Content.ReadFromJsonAsync<AdminProductDetailsResponse>();
+        details.Should().NotBeNull();
+        details!.Title.Should().Be("Desk Tray");
+        details.Slug.Should().Be("desk-tray");
+        details.IsActive.Should().BeTrue();
+        details.Categories.Should().ContainSingle(c => c.Slug == "desk");
+        details.Variants.Should().ContainSingle(v =>
+            v.SizeLabel == "Standard" &&
+            v.MaterialTypeId == plaId &&
+            v.ColorId == blackId);
+        details.ActiveVariantsCount.Should().Be(1);
+        details.VariantsCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Update_should_update_metadata_replace_variants_keep_same_id_and_reflect_in_catalog_and_details()
     {
         Guid plaId;
@@ -213,6 +382,43 @@ public sealed class AdminProductsControllerTests : IClassFixture<PostgresFixture
         await db.SaveChangesAsync();
     }
 
+    private async Task<Guid> CreateProductAsync(
+        string title,
+        string slug,
+        bool isActive,
+        Guid materialTypeId,
+        Guid colorId)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/admin/products", new
+        {
+            title,
+            slug,
+            description = string.Empty,
+            mainImageUrl = string.Empty,
+            isActive,
+            variants = new[]
+            {
+                new
+                {
+                    sizeLabel = "Default",
+                    materialTypeId,
+                    colorId,
+                    widthMm = 100,
+                    heightMm = 40,
+                    depthMm = 60,
+                    weightGrams = 120,
+                    priceOffset = 5,
+                    isActive = true
+                }
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var created = await response.Content.ReadFromJsonAsync<CreatedProductResponse>();
+        created.Should().NotBeNull();
+        return created!.Id;
+    }
+
     public void Dispose()
     {
         _client.Dispose();
@@ -241,6 +447,44 @@ public sealed class AdminProductsControllerTests : IClassFixture<PostgresFixture
         string SizeLabel,
         MaterialTypeSummary MaterialType,
         ColorSummary Color);
+
+    private sealed record AdminProductListItemResponse(
+        Guid Id,
+        string Title,
+        string Slug,
+        bool IsActive,
+        DateTime CreatedAtUtc,
+        int VariantsCount,
+        int ActiveVariantsCount);
+
+    private sealed record AdminProductDetailsResponse(
+        Guid Id,
+        string Title,
+        string Slug,
+        string Description,
+        string? MainImageUrl,
+        bool IsActive,
+        int VariantsCount,
+        int ActiveVariantsCount,
+        List<AdminCategorySummary> Categories,
+        List<AdminVariantSummary> Variants);
+
+    private sealed record AdminCategorySummary(Guid Id, string Name, string Slug, bool IsActive);
+
+    private sealed record AdminVariantSummary(
+        Guid Id,
+        string SizeLabel,
+        Guid MaterialTypeId,
+        string MaterialTypeName,
+        Guid ColorId,
+        string ColorName,
+        string? ColorHex,
+        int WidthMm,
+        int HeightMm,
+        int DepthMm,
+        int WeightGrams,
+        decimal PriceOffset,
+        bool IsActive);
 
     private sealed record MaterialTypeSummary(Guid MaterialTypeId, string Name, decimal BasePricePerKg);
     private sealed record ColorSummary(Guid ColorId, string Name, string Hex);

@@ -101,17 +101,37 @@ public class AdminProductsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] string? q, [FromQuery] string? sort)
     {
         if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
             return Forbid();
 
-        var items = await _db.Products
+        var normalizedQuery = (q ?? string.Empty).Trim();
+        var normalizedSort = NormalizeSort(sort);
+
+        IQueryable<Product> query = _db.Products
             .IgnoreQueryFilters()
-            .Where(x => x.StoreId == storeId)
+            .Where(x => x.StoreId == storeId);
+
+        if (!string.IsNullOrWhiteSpace(normalizedQuery))
+        {
+            var pattern = $"%{normalizedQuery}%";
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Title, pattern) ||
+                EF.Functions.ILike(x.Slug, pattern));
+        }
+
+        query = normalizedSort switch
+        {
+            "alphabetical" => query.OrderBy(x => x.Title).ThenByDescending(x => x.CreatedAtUtc),
+            "active_first" => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Title),
+            "inactive_first" => query.OrderBy(x => x.IsActive).ThenBy(x => x.Title),
+            _ => query.OrderByDescending(x => x.CreatedAtUtc)
+        };
+
+        var items = await query
             .Include(x => x.Categories)
             .Include(x => x.Variants)
-            .OrderByDescending(x => x.CreatedAtUtc)
             .Select(x => new
             {
                 x.Id,
@@ -131,6 +151,69 @@ public class AdminProductsController : ControllerBase
             .ToListAsync();
 
         return Ok(items);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var item = await _db.Products
+            .IgnoreQueryFilters()
+            .Where(x => x.StoreId == storeId && x.Id == id)
+            .Include(x => x.Categories)
+            .Include(x => x.Variants)
+                .ThenInclude(v => v.MaterialType)
+            .Include(x => x.Variants)
+                .ThenInclude(v => v.Color)
+            .Select(x => new
+            {
+                x.Id,
+                x.Title,
+                x.Slug,
+                x.Description,
+                x.MainImageUrl,
+                x.IsActive,
+                x.CreatedAtUtc,
+                Categories = x.Categories
+                    .OrderBy(c => c.SortOrder)
+                    .ThenBy(c => c.Name)
+                    .Select(c => new
+                    {
+                        c.Id,
+                        c.Name,
+                        c.Slug,
+                        c.IsActive
+                    }),
+                Variants = x.Variants
+                    .OrderBy(v => v.SizeLabel)
+                    .ThenBy(v => v.MaterialType.Name)
+                    .ThenBy(v => v.Color.Name)
+                    .Select(v => new
+                    {
+                        v.Id,
+                        v.SizeLabel,
+                        v.MaterialTypeId,
+                        MaterialTypeName = v.MaterialType.Name,
+                        v.ColorId,
+                        ColorName = v.Color.Name,
+                        ColorHex = v.Color.Hex,
+                        v.WidthMm,
+                        v.HeightMm,
+                        v.DepthMm,
+                        v.WeightGrams,
+                        v.PriceOffset,
+                        v.IsActive
+                    }),
+                VariantsCount = x.Variants.Count,
+                ActiveVariantsCount = x.Variants.Count(v => v.IsActive)
+            })
+            .FirstOrDefaultAsync();
+
+        if (item is null) return NotFound();
+
+        return Ok(item);
     }
 
     [HttpPut("{id}")]
@@ -330,4 +413,17 @@ public class AdminProductsController : ControllerBase
 
     private static string BuildVariantKey(string sizeLabel, Guid materialTypeId, Guid colorId)
         => $"{sizeLabel.Trim()}::{materialTypeId:N}::{colorId:N}";
+
+    private static string NormalizeSort(string? sort)
+    {
+        var value = (sort ?? string.Empty).Trim().ToLowerInvariant();
+        return value switch
+        {
+            "alphabetical" => "alphabetical",
+            "active_first" => "active_first",
+            "inactive_first" => "inactive_first",
+            "newest" => "newest",
+            _ => "newest"
+        };
+    }
 }
