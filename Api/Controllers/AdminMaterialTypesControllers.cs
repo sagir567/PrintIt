@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 
@@ -7,6 +9,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/material-types")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminMaterialTypesController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -23,6 +26,9 @@ public class AdminMaterialTypesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateMaterialTypeRequest request)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var name = (request.Name ?? string.Empty).Trim();
     
         if (name.Length == 0)
@@ -33,7 +39,7 @@ public class AdminMaterialTypesController : ControllerBase
     
         var existing = await _db.MaterialTypes
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(x => x.Name == name);
+            .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Name == name);
     
         if (existing != null)
         {
@@ -48,6 +54,7 @@ public class AdminMaterialTypesController : ControllerBase
     
         var entity = new MaterialType
         {
+            StoreId = storeId,
             Name = name,
             IsActive = true
         };
@@ -70,7 +77,10 @@ public class AdminMaterialTypesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var entity = await _db.MaterialTypes.FindAsync(id); 
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.MaterialTypes.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null)
             return NotFound();  
         _db.MaterialTypes.Remove(entity);
@@ -84,9 +94,12 @@ public class AdminMaterialTypesController : ControllerBase
     [HttpPatch("{id}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var entity = await _db.MaterialTypes
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == id);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
 
 
         if (entity == null)
@@ -104,9 +117,12 @@ public class AdminMaterialTypesController : ControllerBase
     [HttpPatch("{id}/activate")]
     public async Task<IActionResult> Activate(Guid id)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var entity = await _db.MaterialTypes
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == id);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
 
         if (entity == null)
             return NotFound();
@@ -124,8 +140,12 @@ public class AdminMaterialTypesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get()
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var items = await _db.MaterialTypes
             .IgnoreQueryFilters()
+            .Where(x => x.StoreId == storeId)
             .OrderBy(x => x.Name)
             .Select(x => new { x.Id, x.Name, x.IsActive })
             .ToListAsync();

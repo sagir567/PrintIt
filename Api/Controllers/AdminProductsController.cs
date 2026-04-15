@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 
@@ -7,6 +9,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/products")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminProductsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -39,6 +42,9 @@ public class AdminProductsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest request)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var title = (request.Title ?? string.Empty).Trim();
         if (title.Length == 0) return BadRequest(new { message = "Title is required." });
         if (title.Length > 200) return BadRequest(new { message = "Title must be 200 characters or less." });
@@ -46,19 +52,20 @@ public class AdminProductsController : ControllerBase
         var slug = BuildSlug(request.Slug, title);
         if (slug.Length == 0) return BadRequest(new { message = "Slug is required." });
 
-        var slugExists = await _db.Products.IgnoreQueryFilters().AnyAsync(x => x.Slug == slug);
+        var slugExists = await _db.Products.IgnoreQueryFilters().AnyAsync(x => x.StoreId == storeId && x.Slug == slug);
         if (slugExists) return Conflict(new { message = "Product slug already exists." });
 
         var categoryIds = request.CategoryIds?.Distinct().ToList() ?? new List<Guid>();
         var categories = categoryIds.Count == 0
             ? new List<Category>()
-            : await _db.Categories.IgnoreQueryFilters().Where(x => categoryIds.Contains(x.Id)).ToListAsync();
+            : await _db.Categories.IgnoreQueryFilters().Where(x => x.StoreId == storeId && categoryIds.Contains(x.Id)).ToListAsync();
 
         if (categories.Count != categoryIds.Count)
             return BadRequest(new { message = "One or more categories were not found." });
 
         var entity = new Product
         {
+            StoreId = storeId,
             Title = title,
             Slug = slug,
             Description = NormalizeOptional(request.Description),
@@ -96,8 +103,12 @@ public class AdminProductsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var items = await _db.Products
             .IgnoreQueryFilters()
+            .Where(x => x.StoreId == storeId)
             .Include(x => x.Categories)
             .Include(x => x.Variants)
             .OrderByDescending(x => x.CreatedAtUtc)
@@ -125,11 +136,14 @@ public class AdminProductsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateProductRequest request)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var entity = await _db.Products
             .IgnoreQueryFilters()
             .Include(x => x.Categories)
             .Include(x => x.Variants)
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
 
         if (entity == null) return NotFound();
 
@@ -142,13 +156,13 @@ public class AdminProductsController : ControllerBase
 
         var slugExists = await _db.Products
             .IgnoreQueryFilters()
-            .AnyAsync(x => x.Id != id && x.Slug == slug);
+            .AnyAsync(x => x.StoreId == storeId && x.Id != id && x.Slug == slug);
         if (slugExists) return Conflict(new { message = "Product slug already exists." });
 
         var categoryIds = request.CategoryIds?.Distinct().ToList() ?? new List<Guid>();
         var categories = categoryIds.Count == 0
             ? new List<Category>()
-            : await _db.Categories.IgnoreQueryFilters().Where(x => categoryIds.Contains(x.Id)).ToListAsync();
+            : await _db.Categories.IgnoreQueryFilters().Where(x => x.StoreId == storeId && categoryIds.Contains(x.Id)).ToListAsync();
 
         if (categories.Count != categoryIds.Count)
             return BadRequest(new { message = "One or more categories were not found." });
@@ -220,7 +234,10 @@ public class AdminProductsController : ControllerBase
     [HttpPatch("{id}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id)
     {
-        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
         if (!entity.IsActive) return NoContent();
 
@@ -232,7 +249,10 @@ public class AdminProductsController : ControllerBase
     [HttpPatch("{id}/activate")]
     public async Task<IActionResult> Activate(Guid id)
     {
-        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
         if (entity.IsActive) return NoContent();
 
@@ -244,7 +264,10 @@ public class AdminProductsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> HardDelete(Guid id)
     {
-        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Products.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
 
         _db.Products.Remove(entity);

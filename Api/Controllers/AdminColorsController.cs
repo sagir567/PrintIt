@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 
@@ -7,6 +9,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/colors")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminColorsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -21,6 +24,9 @@ public class AdminColorsController : ControllerBase
 [HttpPost]
 public async Task<IActionResult> Create([FromBody] CreateColorRequest request)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var name = (request.Name ?? string.Empty).Trim();
     var hex = (request.Hex ?? string.Empty).Trim();
 
@@ -38,7 +44,7 @@ public async Task<IActionResult> Create([FromBody] CreateColorRequest request)
 
     var existing = await _db.Colors
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Name == name);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Name == name);
 
     if (existing != null)
     {
@@ -54,6 +60,7 @@ public async Task<IActionResult> Create([FromBody] CreateColorRequest request)
 
     var entity = new Color
     {
+        StoreId = storeId,
         Name = name,
         Hex = hex.Length == 0 ? null : hex,
         IsActive = true
@@ -77,10 +84,13 @@ public async Task<IActionResult> Create([FromBody] CreateColorRequest request)
     [HttpPatch("{id}/deactivate")]
 public async Task<IActionResult> Deactivate(Guid id)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     // Soft delete: deactivate instead of removing the row.
     var entity = await _db.Colors
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == id);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
 
     if (entity == null)
         return NotFound();
@@ -99,9 +109,12 @@ public async Task<IActionResult> Deactivate(Guid id)
     [HttpPatch("{id}/activate")]
     public async Task<IActionResult> Activate(Guid id)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var entity = await _db.Colors
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x=> x.Id ==id);
+        .FirstOrDefaultAsync(x=> x.StoreId == storeId && x.Id ==id);
         
         if (entity == null)return NotFound();
         if(entity.IsActive)return NoContent();
@@ -116,7 +129,12 @@ public async Task<IActionResult> Deactivate(Guid id)
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var items = await _db.Colors
+            .IgnoreQueryFilters()
+            .Where(c => c.StoreId == storeId)
             .OrderBy(c => c.Name)
             .Select(c => new
             {

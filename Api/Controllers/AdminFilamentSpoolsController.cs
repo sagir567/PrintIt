@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 
@@ -7,6 +9,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/filament-spools")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminFilamentSpoolsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -25,6 +28,9 @@ public class AdminFilamentSpoolsController : ControllerBase
 [HttpPost]
 public async Task<IActionResult> Create([FromBody] CreateFilamentSpoolRequest request)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var initialGrams = request.InitialGrams;
 
     if (initialGrams <= 0)
@@ -40,7 +46,7 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentSpoolRequest re
 
     var filament = await _db.Filaments
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == request.FilamentId);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == request.FilamentId);
 
     if (filament == null)
         return NotFound(new { message = "Filament not found." });
@@ -77,13 +83,17 @@ public record ConsumeSpoolRequest(int GramsUsed);
 [HttpPatch("{id}/consume")]
 public async Task<IActionResult> Consume(Guid id, [FromBody] ConsumeSpoolRequest request)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var gramsUsed = request.GramsUsed;
 
     if (gramsUsed <= 0)
         return BadRequest(new { message = "GramsUsed must be greater than 0." });
 
     var spool = await _db.FilamentSpools
-        .FirstOrDefaultAsync(x => x.Id == id);
+        .Include(x => x.Filament)
+        .FirstOrDefaultAsync(x => x.Id == id && x.Filament.StoreId == storeId);
 
     if (spool == null)
         return NotFound(new { message = "Filament spool not found." });
@@ -118,4 +128,6 @@ public async Task<IActionResult> Consume(Guid id, [FromBody] ConsumeSpoolRequest
 
 
 }
+
+
 

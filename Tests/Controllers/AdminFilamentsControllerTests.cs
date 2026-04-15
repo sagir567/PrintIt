@@ -21,6 +21,19 @@ public sealed class AdminFilamentsControllerTests : IClassFixture<PostgresFixtur
         // Boot the API against the container DB.
         _api = new ApiFactory(pg.ConnectionString);
         _client = _api.CreateClient();
+        _client.LoginAsAdminAsync().GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task Admin_filaments_should_return_unauthorized_without_auth_cookie()
+    {
+        _client.ClearAuthCookie();
+
+        var resp = await _client.GetAsync("/api/v1/admin/filaments");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        await _client.LoginAsAdminAsync();
     }
 
    [Fact]

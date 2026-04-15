@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 using PrintIt.Domain.DomainLogic;
@@ -10,6 +12,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/filaments")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminFilamentsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -28,6 +31,9 @@ public class AdminFilamentsController : ControllerBase
 [HttpPost]
 public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var brand = (request.Brand ?? string.Empty).Trim();
 
     if (brand.Length == 0)
@@ -41,7 +47,7 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request
 
     var materialType = await _db.MaterialTypes
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == request.MaterialTypeId);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == request.MaterialTypeId);
 
     if (materialType == null)
         return NotFound(new { message = "MaterialType not found." });
@@ -51,7 +57,7 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request
 
     var color = await _db.Colors
         .IgnoreQueryFilters()
-        .FirstOrDefaultAsync(x => x.Id == request.ColorId);
+        .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == request.ColorId);
 
     if (color == null)
         return NotFound(new { message = "Color not found." });
@@ -62,6 +68,7 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request
     var existing = await _db.Filaments
         .IgnoreQueryFilters()
         .FirstOrDefaultAsync(x =>
+            x.StoreId == storeId &&
             x.MaterialTypeId == request.MaterialTypeId &&
             x.ColorId == request.ColorId &&
             x.Brand == brand);
@@ -88,6 +95,7 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request
 
     var entity = new Filament
     {
+        StoreId = storeId,
         MaterialTypeId = request.MaterialTypeId,
         ColorId = request.ColorId,
         Brand = brand,
@@ -120,8 +128,12 @@ public async Task<IActionResult> Create([FromBody] CreateFilamentRequest request
 [HttpGet]
 public async Task<IActionResult> GetAll()
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var items = await _db.Filaments
         .IgnoreQueryFilters()
+        .Where(x => x.StoreId == storeId)
         .OrderBy(x => x.Brand)
         .ThenBy(x => x.MaterialType.Name)
         .ThenBy(x => x.Color.Name)
@@ -155,15 +167,18 @@ public async Task<IActionResult> GetAll()
 [HttpGet("{id}/spools")]
 public async Task<IActionResult> GetSpools(Guid id)
 {
+    if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+        return Forbid();
+
     var filamentExists = await _db.Filaments
         .IgnoreQueryFilters()
-        .AnyAsync(x => x.Id == id);
+        .AnyAsync(x => x.Id == id && x.StoreId == storeId);
 
     if (!filamentExists)
         return NotFound(new { message = "Filament not found." });
 
     var spools = await _db.FilamentSpools
-        .Where(x => x.FilamentId == id)
+        .Where(x => x.FilamentId == id && x.Filament.StoreId == storeId)
         .OrderByDescending(x => x.CreatedAtUtc)
         .Select(x => new
         {
@@ -185,13 +200,16 @@ public async Task<IActionResult> GetSpools(Guid id)
     [HttpPatch("{id}/consume")]
     public async Task<IActionResult> ConsumeFromInventory(Guid id, [FromBody] ConsumeFilamentRequest request)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         if (request.GramsUsed <= 0)
             return BadRequest(new { message = "GramsUsed must be greater than 0." });
 
         // Admin can consume even if filament is inactive (inventory operations), but it must exist.
         var filamentExists = await _db.Filaments
             .IgnoreQueryFilters()
-            .AnyAsync(x => x.Id == id);
+            .AnyAsync(x => x.Id == id && x.StoreId == storeId);
 
         if (!filamentExists)
             return NotFound(new { message = "Filament not found." });
@@ -208,7 +226,7 @@ public async Task<IActionResult> GetSpools(Guid id)
 // Choose the "best fit" spool: the smallest RemainingGrams that can still satisfy the usage.
 // This reduces leftover grams and keeps inventory tighter.
         var spool = await _db.FilamentSpools
-            .Where(x => x.FilamentId == id)
+            .Where(x => x.FilamentId == id && x.Filament.StoreId == storeId)
             .Where(x => x.RemainingGrams > 0)
             .Where(x => x.RemainingGrams + toleranceGrams >= gramsUsed)
             // Pick the smallest sufficient spool (min remaining that still covers usage)

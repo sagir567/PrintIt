@@ -21,6 +21,21 @@ public sealed class AdminFilamentSpoolsControllerTests : IClassFixture<PostgresF
         // Boot the API against the container DB.
         _api = new ApiFactory(pg.ConnectionString);
         _client = _api.CreateClient();
+        _client.LoginAsAdminAsync().GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task Admin_filament_spools_should_return_unauthorized_without_auth_cookie()
+    {
+        _client.ClearAuthCookie();
+
+        var resp = await _client.PostAsJsonAsync(
+            "/api/v1/admin/filament-spools",
+            new CreateFilamentSpoolRequest(Guid.NewGuid(), 1000, null));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        await _client.LoginAsAdminAsync();
     }
 
     [Fact]

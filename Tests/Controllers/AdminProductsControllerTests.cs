@@ -18,6 +18,19 @@ public sealed class AdminProductsControllerTests : IClassFixture<PostgresFixture
     {
         _api = new ApiFactory(pg.ConnectionString);
         _client = _api.CreateClient();
+        _client.LoginAsAdminAsync().GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task Admin_products_should_return_unauthorized_without_auth_cookie()
+    {
+        _client.ClearAuthCookie();
+
+        var resp = await _client.GetAsync("/api/v1/admin/products");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        await _client.LoginAsAdminAsync();
     }
 
     [Fact]

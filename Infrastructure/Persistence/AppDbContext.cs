@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<MaterialType> MaterialTypes => Set<MaterialType>();
     public DbSet<Color> Colors => Set<Color>();
     public DbSet<Filament> Filaments => Set<Filament>();
@@ -37,6 +38,31 @@ public class AppDbContext : DbContext
 
             b.HasIndex(x => x.Slug).IsUnique();
             b.HasIndex(x => x.IsActive);
+        });
+
+        modelBuilder.Entity<AdminUser>(b =>
+        {
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Email)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            b.Property(x => x.NormalizedEmail)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            b.Property(x => x.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            b.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => x.IsActive);
+            b.HasIndex(x => new { x.StoreId, x.NormalizedEmail }).IsUnique();
         });
 
         modelBuilder.Entity<MaterialType>(b =>
@@ -148,13 +174,12 @@ public class AppDbContext : DbContext
             b.Property(x => x.MainImageUrl)
                 .HasMaxLength(500);
 
-            b.HasIndex(x => x.IsActive);
-
             b.HasOne(x => x.Store)
                 .WithMany()
                 .HasForeignKey(x => x.StoreId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            b.HasIndex(x => x.IsActive);
             b.HasIndex(x => new { x.StoreId, x.Slug }).IsUnique();
 
             b.HasMany(x => x.Variants)

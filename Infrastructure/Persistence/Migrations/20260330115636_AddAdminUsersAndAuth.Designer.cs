@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PrintIt.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PrintIt.Infrastructure.Persistence;
 namespace PrintIt.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260330115636_AddAdminUsersAndAuth")]
+    partial class AddAdminUsersAndAuth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -67,14 +70,11 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("StoreId", "NormalizedEmail")
+                    b.HasIndex("NormalizedEmail")
                         .IsUnique();
 
                     b.ToTable("AdminUsers");
@@ -109,9 +109,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("IsActive");
@@ -123,8 +120,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("SortOrder");
-
-                    b.HasIndex("StoreId");
 
                     b.ToTable("Categories");
                 });
@@ -150,12 +145,9 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("StoreId", "Name")
+                    b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("Colors");
@@ -188,16 +180,11 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("MaterialTypeId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ColorId");
 
-                    b.HasIndex("MaterialTypeId");
-
-                    b.HasIndex("StoreId", "MaterialTypeId", "ColorId", "Brand")
+                    b.HasIndex("MaterialTypeId", "ColorId", "Brand")
                         .IsUnique();
 
                     b.ToTable("Filaments");
@@ -257,12 +244,9 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("StoreId", "Name")
+                    b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("MaterialTypes");
@@ -293,9 +277,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -305,7 +286,7 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("StoreId", "Slug")
+                    b.HasIndex("Slug")
                         .IsUnique();
 
                     b.ToTable("Products");
@@ -367,41 +348,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                     b.ToTable("ProductVariants");
                 });
 
-            modelBuilder.Entity("PrintIt.Domain.Entities.Store", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Slug")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("Slug")
-                        .IsUnique();
-
-                    b.ToTable("Stores");
-                });
-
             modelBuilder.Entity("CategoryProduct", b =>
                 {
                     b.HasOne("PrintIt.Domain.Entities.Category", null)
@@ -415,39 +361,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProductsId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("PrintIt.Domain.Entities.AdminUser", b =>
-                {
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PrintIt.Domain.Entities.Category", b =>
-                {
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PrintIt.Domain.Entities.Color", b =>
-                {
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Store");
                 });
 
             modelBuilder.Entity("PrintIt.Domain.Entities.Filament", b =>
@@ -464,17 +377,9 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Color");
 
                     b.Navigation("MaterialType");
-
-                    b.Navigation("Store");
                 });
 
             modelBuilder.Entity("PrintIt.Domain.Entities.FilamentSpool", b =>
@@ -486,28 +391,6 @@ namespace PrintIt.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Filament");
-                });
-
-            modelBuilder.Entity("PrintIt.Domain.Entities.MaterialType", b =>
-                {
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("PrintIt.Domain.Entities.Product", b =>
-                {
-                    b.HasOne("PrintIt.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Store");
                 });
 
             modelBuilder.Entity("PrintIt.Domain.Entities.ProductVariant", b =>
