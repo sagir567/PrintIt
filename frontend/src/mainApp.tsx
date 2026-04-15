@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import {
   BrowserRouter,
+  NavLink,
+  Outlet,
   Routes,
   Route,
   Navigate,
@@ -13,7 +15,237 @@ import * as THREE from 'three'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 import { StlViewer } from './StlViewer'
 import { CartProvider, useCart } from './CartContext'
-import { AdminMaterialsPage, AdminColorsPage } from './AdminPages'
+
+const API_BASE_URL = 'http://localhost:5051'
+
+type AdminUser = {
+  id: string
+  email: string
+}
+
+type AdminAuthState = {
+  status: 'loading' | 'authenticated' | 'anonymous'
+  admin: AdminUser | null
+}
+
+type AdminAuthContextValue = AdminAuthState & {
+  refresh: () => Promise<void>
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
+  logout: () => Promise<void>
+}
+
+const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefined)
+
+function AdminAuthProvider(props: { children: React.ReactNode }) {
+  const [state, setState] = useState<AdminAuthState>({ status: 'loading', admin: null })
+
+  const refresh = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/auth/me`, {
+        credentials: 'include',
+      })
+
+      if (response.status === 401) {
+        setState({ status: 'anonymous', admin: null })
+        return
+      }
+
+      if (!response.ok) {
+        setState({ status: 'anonymous', admin: null })
+        return
+      }
+
+      const me = (await response.json()) as AdminUser
+      setState({ status: 'authenticated', admin: me })
+    } catch {
+      setState({ status: 'anonymous', admin: null })
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (response.status === 401) {
+        setState({ status: 'anonymous', admin: null })
+        return { ok: false, error: 'Invalid email or password.' }
+      }
+
+      if (!response.ok) {
+        setState({ status: 'anonymous', admin: null })
+        return { ok: false, error: 'Login failed. Please try again.' }
+      }
+
+      await refresh()
+      return { ok: true }
+    } catch {
+      setState({ status: 'anonymous', admin: null })
+      return { ok: false, error: 'Network error. Please try again.' }
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/v1/admin/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } finally {
+      setState({ status: 'anonymous', admin: null })
+    }
+  }
+
+  const value = useMemo<AdminAuthContextValue>(
+    () => ({
+      ...state,
+      refresh,
+      login,
+      logout,
+    }),
+    [state],
+  )
+
+  return <AdminAuthContext.Provider value={value}>{props.children}</AdminAuthContext.Provider>
+}
+
+function useAdminAuth() {
+  const ctx = useContext(AdminAuthContext)
+  if (!ctx) throw new Error('useAdminAuth must be used inside AdminAuthProvider')
+  return ctx
+}
+
+function ProtectedAdminRoute(props: { children: React.ReactNode }) {
+  const auth = useAdminAuth()
+
+  if (auth.status === 'loading') {
+    return (
+      <div className="page">
+        <h1>Checking admin session…</h1>
+        <p>Please wait.</p>
+      </div>
+    )
+  }
+
+  if (auth.status !== 'authenticated') {
+    return <Navigate to="/admin/login" replace />
+  }
+
+  return <>{props.children}</>
+}
+
+function AdminLoginPage() {
+  const auth = useAdminAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (auth.status === 'authenticated') {
+    return <Navigate to="/admin/dashboard" replace />
+  }
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
+    const result = await auth.login(email.trim(), password)
+    if (!result.ok) {
+      setError(result.error ?? 'Login failed')
+    }
+
+    setIsSubmitting(false)
+  }
+
+  return (
+    <div className="page admin-login-page">
+      <div className="admin-login-card">
+        <h1>Admin login</h1>
+        <p>Sign in to access the protected admin area.</p>
+
+        <form className="admin-login-form" onSubmit={onSubmit}>
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          {error && <p className="status-error">{error}</p>}
+
+          <button className="btn primary" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AdminShellLayout() {
+  const auth = useAdminAuth()
+
+  return (
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <h2>Admin</h2>
+        <nav>
+          <NavLink to="/admin/dashboard">Dashboard</NavLink>
+          <NavLink to="/admin/products">Products</NavLink>
+          <NavLink to="/admin/inventory">Inventory</NavLink>
+          <NavLink to="/admin/orders">Orders</NavLink>
+          <NavLink to="/admin/alerts">Alerts</NavLink>
+        </nav>
+      </aside>
+
+      <section className="admin-content">
+        <div className="admin-toolbar">
+          <div>
+            <strong>{auth.admin?.email}</strong>
+          </div>
+          <button className="btn secondary" onClick={() => void auth.logout()}>
+            Logout
+          </button>
+        </div>
+
+        <Outlet />
+      </section>
+    </div>
+  )
+}
+
+function AdminPlaceholderPage(props: { title: string; description: string }) {
+  return (
+    <div className="admin-panel-card">
+      <h1>{props.title}</h1>
+      <p>{props.description}</p>
+    </div>
+  )
+}
 
 function AppShell(props: { children: React.ReactNode }) {
   return (
@@ -25,7 +257,7 @@ function AppShell(props: { children: React.ReactNode }) {
           <Link to="/products">Products</Link>
           <Link to="/upload">Upload STL</Link>
           <Link to="/cart">Cart</Link>
-          <Link to="/admin/materials">Admin</Link>
+          <Link to="/admin">Admin</Link>
         </nav>
       </header>
       <main className="app-main">{props.children}</main>
@@ -113,7 +345,7 @@ function ProductGridPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetch('http://localhost:5051/api/v1/catalog/categories')
+    fetch(`${API_BASE_URL}/api/v1/catalog/categories`)
       .then((res) => res.json())
       .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch((err) => console.error('Failed to load categories', err))
@@ -128,7 +360,7 @@ function ProductGridPage() {
     if (search.trim()) q.set('q', search.trim())
 
     setLoading(true)
-    fetch(`http://localhost:5051/api/v1/catalog/products?${q.toString()}`)
+    fetch(`${API_BASE_URL}/api/v1/catalog/products?${q.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         const items = Array.isArray(data?.items) ? data.items : []
@@ -242,7 +474,7 @@ function ProductDetailsPage() {
   useEffect(() => {
     if (!id) return
     setLoading(true)
-    fetch(`http://localhost:5051/api/v1/catalog/products/${id}`)
+    fetch(`${API_BASE_URL}/api/v1/catalog/products/${id}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setProduct(data))
       .catch((err) => {
@@ -544,7 +776,7 @@ function UploadPage() {
   }
 
   useEffect(() => {
-    fetch('http://localhost:5051/api/v1/filaments', { cache: 'no-cache' })
+    fetch(`${API_BASE_URL}/api/v1/filaments`, { cache: 'no-cache' })
       .then((res) => res.json())
       .then((data) => {
         console.log('Fetched filaments:', data)
@@ -843,20 +1075,78 @@ function CartPage() {
 function App() {
   return (
     <BrowserRouter>
-      <CartProvider>
-        <AppShell>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/products" element={<ProductGridPage />} />
-            <Route path="/products/:id" element={<ProductDetailsPage />} />
-            <Route path="/upload" element={<UploadPage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/admin/materials" element={<AdminMaterialsPage />} />
-            <Route path="/admin/colors" element={<AdminColorsPage />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </AppShell>
-      </CartProvider>
+      <AdminAuthProvider>
+        <CartProvider>
+          <AppShell>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/products" element={<ProductGridPage />} />
+              <Route path="/products/:id" element={<ProductDetailsPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/cart" element={<CartPage />} />
+
+              <Route path="/admin/login" element={<AdminLoginPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedAdminRoute>
+                    <AdminShellLayout />
+                  </ProtectedAdminRoute>
+                }
+              >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route
+                  path="dashboard"
+                  element={
+                    <AdminPlaceholderPage
+                      title="Dashboard"
+                      description="Admin dashboard foundation is ready. Dashboard widgets will be added in the next phase."
+                    />
+                  }
+                />
+                <Route
+                  path="products"
+                  element={
+                    <AdminPlaceholderPage
+                      title="Products"
+                      description="Product management module placeholder. Product create/edit tools will be added in a later phase."
+                    />
+                  }
+                />
+                <Route
+                  path="inventory"
+                  element={
+                    <AdminPlaceholderPage
+                      title="Inventory"
+                      description="Inventory management module placeholder. Stock and spool workflows will be wired here later."
+                    />
+                  }
+                />
+                <Route
+                  path="orders"
+                  element={
+                    <AdminPlaceholderPage
+                      title="Orders"
+                      description="Orders module placeholder. Viewing and status update flows will be added in the next phase."
+                    />
+                  }
+                />
+                <Route
+                  path="alerts"
+                  element={
+                    <AdminPlaceholderPage
+                      title="Alerts"
+                      description="Low-stock and reorder alerts placeholder. Alert logic will be added later."
+                    />
+                  }
+                />
+              </Route>
+
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </AppShell>
+        </CartProvider>
+      </AdminAuthProvider>
     </BrowserRouter>
   )
 }
@@ -866,6 +1156,7 @@ ReactDOM.createRoot(document.getElementById('app') as HTMLElement).render(
     <App />
   </React.StrictMode>,
 )
+
 
 
 

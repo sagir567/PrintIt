@@ -20,6 +20,19 @@ public sealed class AdminColorsControllerTests : IClassFixture<PostgresFixture>,
     {
         _api = new ApiFactory(pg.ConnectionString);
         _client = _api.CreateClient();
+        _client.LoginAsAdminAsync().GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task Admin_colors_should_return_unauthorized_without_auth_cookie()
+    {
+        _client.ClearAuthCookie();
+
+        var resp = await _client.GetAsync("/api/v1/admin/colors");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        await _client.LoginAsAdminAsync();
     }
 
     [Fact]

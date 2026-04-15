@@ -18,6 +18,7 @@ public sealed class CatalogControllerTests : IClassFixture<PostgresFixture>, IDi
     {
         _api = new ApiFactory(pg.ConnectionString);
         _client = _api.CreateClient();
+        _client.LoginAsAdminAsync().GetAwaiter().GetResult();
     }
 
     [Fact]

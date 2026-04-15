@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PrintIt.Api.Auth;
 using PrintIt.Domain.Entities;
 using PrintIt.Infrastructure.Persistence;
 
@@ -7,6 +9,7 @@ namespace PrintIt.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/categories")]
+[Authorize(Policy = "AdminOnly")]
 public class AdminCategoriesController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -22,6 +25,9 @@ public class AdminCategoriesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCategoryRequest request)
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var name = (request.Name ?? string.Empty).Trim();
         if (name.Length == 0) return BadRequest(new { message = "Name is required." });
         if (name.Length > 100) return BadRequest(new { message = "Name must be 100 characters or less." });
@@ -29,11 +35,12 @@ public class AdminCategoriesController : ControllerBase
         var slug = BuildSlug(request.Slug, name);
         if (slug.Length == 0) return BadRequest(new { message = "Slug is required." });
 
-        var exists = await _db.Categories.IgnoreQueryFilters().AnyAsync(x => x.Name == name || x.Slug == slug);
+        var exists = await _db.Categories.IgnoreQueryFilters().AnyAsync(x => x.StoreId == storeId && (x.Name == name || x.Slug == slug));
         if (exists) return Conflict(new { message = "Category with same name or slug already exists." });
 
         var entity = new Category
         {
+            StoreId = storeId,
             Name = name,
             Slug = slug,
             Description = NormalizeOptional(request.Description),
@@ -58,8 +65,12 @@ public class AdminCategoriesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
         var items = await _db.Categories
             .IgnoreQueryFilters()
+            .Where(x => x.StoreId == storeId)
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Name)
             .Select(x => new
@@ -80,7 +91,10 @@ public class AdminCategoriesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCategoryRequest request)
     {
-        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
 
         var name = (request.Name ?? string.Empty).Trim();
@@ -92,7 +106,7 @@ public class AdminCategoriesController : ControllerBase
 
         var duplicate = await _db.Categories
             .IgnoreQueryFilters()
-            .AnyAsync(x => x.Id != id && (x.Name == name || x.Slug == slug));
+            .AnyAsync(x => x.StoreId == storeId && x.Id != id && (x.Name == name || x.Slug == slug));
 
         if (duplicate) return Conflict(new { message = "Category with same name or slug already exists." });
 
@@ -109,7 +123,10 @@ public class AdminCategoriesController : ControllerBase
     [HttpPatch("{id}/deactivate")]
     public async Task<IActionResult> Deactivate(Guid id)
     {
-        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
         if (!entity.IsActive) return NoContent();
 
@@ -121,7 +138,10 @@ public class AdminCategoriesController : ControllerBase
     [HttpPatch("{id}/activate")]
     public async Task<IActionResult> Activate(Guid id)
     {
-        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
         if (entity.IsActive) return NoContent();
 
@@ -133,7 +153,10 @@ public class AdminCategoriesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> HardDelete(Guid id)
     {
-        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id);
+        if (!AdminStoreContext.TryGetStoreId(User, out var storeId))
+            return Forbid();
+
+        var entity = await _db.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.StoreId == storeId && x.Id == id);
         if (entity == null) return NotFound();
 
         _db.Categories.Remove(entity);
