@@ -29,13 +29,15 @@ builder.Services.Configure<PrintIt.Api.StoreBootstrapSettings>(builder.Configura
 builder.Services.AddControllers();
 
 // Add CORS for development
+// Add CORS for development
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -193,76 +195,398 @@ async Task<Guid> SeedBootstrapStoreAsync(AppDbContext db, PrintIt.Api.StoreBoots
 
 async Task SeedDataAsync(AppDbContext db, Guid storeId)
 {
-    // Seed MaterialTypes
-    if (!await db.MaterialTypes.AnyAsync(x => x.StoreId == storeId))
+    var requiredMaterials = new[]
     {
-        var pla = new MaterialType { StoreId = storeId, Name = "PLA", IsActive = true };
-        var petg = new MaterialType { StoreId = storeId, Name = "PETG", IsActive = true };
-        var abs = new MaterialType { StoreId = storeId, Name = "ABS", IsActive = true };
-        db.MaterialTypes.AddRange(pla, petg, abs);
-        await db.SaveChangesAsync();
-    }
+        new { Name = "PLA", BasePricePerKg = 105m },
+        new { Name = "PETG", BasePricePerKg = 125m },
+        new { Name = "ABS", BasePricePerKg = 135m }
+    };
 
-    // Seed Colors
-    if (!await db.Colors.AnyAsync(x => x.StoreId == storeId))
+    var requiredColors = new[]
     {
-        var red = new Color { StoreId = storeId, Name = "Red", Hex = "#FF0000", IsActive = true };
-        var blue = new Color { StoreId = storeId, Name = "Blue", Hex = "#0000FF", IsActive = true };
-        var black = new Color { StoreId = storeId, Name = "Black", Hex = "#000000", IsActive = true };
-        var white = new Color { StoreId = storeId, Name = "White", Hex = "#FFFFFF", IsActive = true };
-        db.Colors.AddRange(red, blue, black, white);
-        await db.SaveChangesAsync();
-    }
+        new { Name = "Black", Hex = "#000000" },
+        new { Name = "White", Hex = "#FFFFFF" },
+        new { Name = "Red", Hex = "#FF0000" }
+    };
 
-    // Seed Filaments (add for materials that don't have them)
-    var materials = await db.MaterialTypes.Where(x => x.StoreId == storeId).ToListAsync();
-    var colors = await db.Colors.Where(x => x.StoreId == storeId).ToListAsync();
-
-    foreach (var material in materials)
+    var requiredFilaments = new[]
     {
-        if (!await db.Filaments.AnyAsync(f => f.StoreId == storeId && f.MaterialTypeId == material.Id))
+        new { Material = "PLA", Color = "Black", Brand = "PrintaPro", CostPerKg = 82m },
+        new { Material = "PLA", Color = "White", Brand = "PrintaPro", CostPerKg = 84m },
+        new { Material = "PLA", Color = "Red", Brand = "PrintaPro", CostPerKg = 86m },
+        new { Material = "PETG", Color = "Black", Brand = "LayerLine", CostPerKg = 94m },
+        new { Material = "PETG", Color = "White", Brand = "LayerLine", CostPerKg = 96m },
+        new { Material = "PETG", Color = "Red", Brand = "LayerLine", CostPerKg = 98m },
+        new { Material = "ABS", Color = "Black", Brand = "ForgeFil", CostPerKg = 102m },
+        new { Material = "ABS", Color = "White", Brand = "ForgeFil", CostPerKg = 104m },
+        new { Material = "ABS", Color = "Red", Brand = "ForgeFil", CostPerKg = 106m }
+    };
+
+    var requiredCategories = new[]
+    {
+        new { Name = "Desk", Slug = "desk", Description = "Workspace and desk organization prints.", SortOrder = 1 },
+        new { Name = "Home", Slug = "home", Description = "Functional home utility prints.", SortOrder = 2 },
+        new { Name = "Gaming", Slug = "gaming", Description = "Accessories for gamers and controllers.", SortOrder = 3 },
+        new { Name = "Accessories", Slug = "accessories", Description = "Everyday carry and accessory helpers.", SortOrder = 4 }
+    };
+
+    var requiredProducts = new[]
+    {
+        new
         {
-            var filamentsToAdd = colors.Take(3).Select(color => new Filament
+            Title = "Adjustable Phone Stand",
+            Slug = "adjustable-phone-stand",
+            Description = "Stable desk phone stand with viewing angle support.",
+            Image = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9",
+            Categories = new[] { "desk", "accessories" },
+            Variants = new[]
+            {
+                new { Size = "Standard", Material = "PLA", Color = "Black", W = 80, H = 110, D = 95, Weight = 95, Offset = 9m },
+                new { Size = "Standard", Material = "PETG", Color = "White", W = 80, H = 110, D = 95, Weight = 102, Offset = 11m }
+            }
+        },
+        new
+        {
+            Title = "Snap Cable Organizer",
+            Slug = "snap-cable-organizer",
+            Description = "Clip-style cable organizer for tidy desks.",
+            Image = "https://images.unsplash.com/photo-1519389950473-47ba0277781c",
+            Categories = new[] { "desk", "home" },
+            Variants = new[]
+            {
+                new { Size = "3-Slot", Material = "PLA", Color = "White", W = 95, H = 18, D = 20, Weight = 32, Offset = 5m },
+                new { Size = "5-Slot", Material = "PETG", Color = "Black", W = 145, H = 18, D = 20, Weight = 45, Offset = 7m }
+            }
+        },
+        new
+        {
+            Title = "Minimal Wall Hook",
+            Slug = "minimal-wall-hook",
+            Description = "Compact wall hook for lightweight items.",
+            Image = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85",
+            Categories = new[] { "home" },
+            Variants = new[]
+            {
+                new { Size = "Small", Material = "PETG", Color = "White", W = 30, H = 45, D = 35, Weight = 22, Offset = 4m },
+                new { Size = "Large", Material = "ABS", Color = "Black", W = 45, H = 60, D = 45, Weight = 38, Offset = 6m }
+            }
+        },
+        new
+        {
+            Title = "Dual Controller Stand",
+            Slug = "dual-controller-stand",
+            Description = "Desk stand for two game controllers.",
+            Image = "https://images.unsplash.com/photo-1486401899868-0e435ed85128",
+            Categories = new[] { "gaming", "desk" },
+            Variants = new[]
+            {
+                new { Size = "Dual", Material = "PLA", Color = "Red", W = 160, H = 135, D = 120, Weight = 185, Offset = 14m },
+                new { Size = "Dual", Material = "PETG", Color = "Black", W = 160, H = 135, D = 120, Weight = 195, Offset = 16m }
+            }
+        },
+        new
+        {
+            Title = "Self-Watering Planter",
+            Slug = "self-watering-planter",
+            Description = "Compact planter with integrated water reservoir.",
+            Image = "https://images.unsplash.com/photo-1463320726281-696a485928c7",
+            Categories = new[] { "home" },
+            Variants = new[]
+            {
+                new { Size = "Medium", Material = "PETG", Color = "White", W = 120, H = 110, D = 120, Weight = 165, Offset = 12m },
+                new { Size = "Medium", Material = "ABS", Color = "Red", W = 120, H = 110, D = 120, Weight = 175, Offset = 13m }
+            }
+        },
+        new
+        {
+            Title = "Under-Desk Headphone Hanger",
+            Slug = "under-desk-headphone-hanger",
+            Description = "Screw-mount hanger to keep headphones off the desk.",
+            Image = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e",
+            Categories = new[] { "desk", "accessories" },
+            Variants = new[]
+            {
+                new { Size = "Standard", Material = "ABS", Color = "Black", W = 40, H = 55, D = 80, Weight = 48, Offset = 6m },
+                new { Size = "Standard", Material = "PLA", Color = "White", W = 40, H = 55, D = 80, Weight = 44, Offset = 5m }
+            }
+        },
+        new
+        {
+            Title = "Wall Key Holder",
+            Slug = "wall-key-holder",
+            Description = "Wall-mounted key rack with six hooks.",
+            Image = "https://images.unsplash.com/photo-1484154218962-a197022b5858",
+            Categories = new[] { "home", "accessories" },
+            Variants = new[]
+            {
+                new { Size = "6-Hook", Material = "PLA", Color = "Black", W = 170, H = 55, D = 22, Weight = 68, Offset = 8m },
+                new { Size = "6-Hook", Material = "PETG", Color = "Red", W = 170, H = 55, D = 22, Weight = 75, Offset = 10m }
+            }
+        },
+        new
+        {
+            Title = "Desktop Utility Tray",
+            Slug = "desktop-utility-tray",
+            Description = "Everyday carry tray for wallet, keys, and watch.",
+            Image = "https://images.unsplash.com/photo-1498050108023-c5249f4df085",
+            Categories = new[] { "desk" },
+            Variants = new[]
+            {
+                new { Size = "Small", Material = "PLA", Color = "White", W = 160, H = 25, D = 110, Weight = 88, Offset = 8m },
+                new { Size = "Large", Material = "PETG", Color = "Black", W = 210, H = 28, D = 140, Weight = 122, Offset = 11m }
+            }
+        },
+        new
+        {
+            Title = "Foldable Laptop Riser",
+            Slug = "foldable-laptop-riser",
+            Description = "Portable laptop stand for improved ergonomics.",
+            Image = "https://images.unsplash.com/photo-1517336714739-489689fd1ca8",
+            Categories = new[] { "desk", "accessories" },
+            Variants = new[]
+            {
+                new { Size = "13-14 inch", Material = "ABS", Color = "Black", W = 240, H = 90, D = 215, Weight = 210, Offset = 16m },
+                new { Size = "15-16 inch", Material = "PETG", Color = "Red", W = 270, H = 95, D = 230, Weight = 245, Offset = 19m }
+            }
+        },
+        new
+        {
+            Title = "Hex Coaster Set",
+            Slug = "hex-coaster-set",
+            Description = "Set of interlocking hexagon drink coasters.",
+            Image = "https://images.unsplash.com/photo-1517705008128-361805f42e86",
+            Categories = new[] { "home", "accessories" },
+            Variants = new[]
+            {
+                new { Size = "Set of 4", Material = "PLA", Color = "Red", W = 95, H = 6, D = 110, Weight = 54, Offset = 7m },
+                new { Size = "Set of 6", Material = "PETG", Color = "White", W = 95, H = 8, D = 110, Weight = 78, Offset = 9m }
+            }
+        }
+    };
+
+    var materialByName = await db.MaterialTypes
+        .Where(x => x.StoreId == storeId)
+        .ToDictionaryAsync(x => x.Name, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var seed in requiredMaterials)
+    {
+        if (!materialByName.TryGetValue(seed.Name, out var entity))
+        {
+            entity = new MaterialType
             {
                 StoreId = storeId,
-                MaterialTypeId = material.Id,
-                ColorId = color.Id,
-                Brand = "Generic",
-                CostPerKg = 150.00m,
+                Name = seed.Name,
+                BasePricePerKg = seed.BasePricePerKg,
                 IsActive = true
-            }).ToList();
-            
-            db.Filaments.AddRange(filamentsToAdd);
-            await db.SaveChangesAsync();
+            };
+            db.MaterialTypes.Add(entity);
+            materialByName[seed.Name] = entity;
+            continue;
+        }
 
-            // Retrieve the filaments from database to get their IDs
-            var filaments = await db.Filaments
-                .Where(f => f.StoreId == storeId && f.MaterialTypeId == material.Id)
-                .ToListAsync();
+        entity.BasePricePerKg = seed.BasePricePerKg;
+        entity.IsActive = true;
+    }
+    await db.SaveChangesAsync();
 
-            // Add spools
-            var spools = new List<FilamentSpool>();
-            foreach (var filament in filaments)
+    var colorByName = await db.Colors
+        .Where(x => x.StoreId == storeId)
+        .ToDictionaryAsync(x => x.Name, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var seed in requiredColors)
+    {
+        if (!colorByName.TryGetValue(seed.Name, out var entity))
+        {
+            entity = new Color
             {
-                spools.Add(new FilamentSpool
-                {
-                    FilamentId = filament.Id,
-                    RemainingGrams = 1000,
-                    InitialGrams = 1000,
-                    Status = "New"
-                });
-                spools.Add(new FilamentSpool
-                {
-                    FilamentId = filament.Id,
-                    RemainingGrams = 800,
-                    InitialGrams = 1000,
-                    Status = "Opened"
-                });
-            }
-            db.FilamentSpools.AddRange(spools);
-            await db.SaveChangesAsync();
+                StoreId = storeId,
+                Name = seed.Name,
+                Hex = seed.Hex,
+                IsActive = true
+            };
+            db.Colors.Add(entity);
+            colorByName[seed.Name] = entity;
+            continue;
+        }
+
+        entity.Hex = seed.Hex;
+        entity.IsActive = true;
+    }
+    await db.SaveChangesAsync();
+
+    foreach (var seed in requiredFilaments)
+    {
+        var materialId = materialByName[seed.Material].Id;
+        var colorId = colorByName[seed.Color].Id;
+
+        var filament = await db.Filaments.FirstOrDefaultAsync(x =>
+            x.StoreId == storeId &&
+            x.MaterialTypeId == materialId &&
+            x.ColorId == colorId &&
+            x.Brand == seed.Brand);
+
+        if (filament is null)
+        {
+            filament = new Filament
+            {
+                StoreId = storeId,
+                MaterialTypeId = materialId,
+                ColorId = colorId,
+                Brand = seed.Brand,
+                CostPerKg = seed.CostPerKg,
+                IsActive = true
+            };
+            db.Filaments.Add(filament);
+        }
+        else
+        {
+            filament.CostPerKg = seed.CostPerKg;
+            filament.IsActive = true;
         }
     }
+    await db.SaveChangesAsync();
+
+    var requiredFilamentKeySet = requiredFilaments
+        .Select(x => $"{x.Material}|{x.Color}|{x.Brand}")
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    var filamentsForSpools = (await db.Filaments
+        .Where(x => x.StoreId == storeId)
+        .Include(x => x.MaterialType)
+        .Include(x => x.Color)
+        .ToListAsync())
+        .Where(x => requiredFilamentKeySet.Contains($"{x.MaterialType.Name}|{x.Color.Name}|{x.Brand}"))
+        .ToList();
+
+    foreach (var filament in filamentsForSpools)
+    {
+        var hasNew = await db.FilamentSpools.AnyAsync(x => x.FilamentId == filament.Id && x.Status == "New");
+        if (!hasNew)
+        {
+            db.FilamentSpools.Add(new FilamentSpool
+            {
+                FilamentId = filament.Id,
+                InitialGrams = 1000,
+                RemainingGrams = 1000,
+                Status = "New"
+            });
+        }
+
+        var hasOpened = await db.FilamentSpools.AnyAsync(x => x.FilamentId == filament.Id && x.Status == "Opened");
+        if (!hasOpened)
+        {
+            db.FilamentSpools.Add(new FilamentSpool
+            {
+                FilamentId = filament.Id,
+                InitialGrams = 1000,
+                RemainingGrams = 700,
+                Status = "Opened"
+            });
+        }
+    }
+    await db.SaveChangesAsync();
+
+    var categoriesBySlug = await db.Categories
+        .IgnoreQueryFilters()
+        .ToDictionaryAsync(x => x.Slug, StringComparer.OrdinalIgnoreCase);
+
+    foreach (var seed in requiredCategories)
+    {
+        if (!categoriesBySlug.TryGetValue(seed.Slug, out var category))
+        {
+            category = new Category
+            {
+                StoreId = storeId,
+                Name = seed.Name,
+                Slug = seed.Slug,
+                Description = seed.Description,
+                SortOrder = seed.SortOrder,
+                IsActive = true
+            };
+            db.Categories.Add(category);
+            categoriesBySlug[seed.Slug] = category;
+            continue;
+        }
+
+        category.StoreId = storeId;
+        category.Name = seed.Name;
+        category.Description = seed.Description;
+        category.SortOrder = seed.SortOrder;
+        category.IsActive = true;
+    }
+    await db.SaveChangesAsync();
+
+    foreach (var seed in requiredProducts)
+    {
+        var product = await db.Products
+            .Include(x => x.Categories)
+            .Include(x => x.Variants)
+            .FirstOrDefaultAsync(x => x.StoreId == storeId && x.Slug == seed.Slug);
+
+        if (product is null)
+        {
+            product = new Product
+            {
+                StoreId = storeId,
+                Title = seed.Title,
+                Slug = seed.Slug,
+                Description = seed.Description,
+                MainImageUrl = seed.Image,
+                IsActive = true
+            };
+            db.Products.Add(product);
+        }
+        else
+        {
+            product.Title = seed.Title;
+            product.Description = seed.Description;
+            product.MainImageUrl = seed.Image;
+            product.IsActive = true;
+        }
+
+        product.Categories.Clear();
+        foreach (var categorySlug in seed.Categories)
+        {
+            product.Categories.Add(categoriesBySlug[categorySlug]);
+        }
+
+        foreach (var variantSeed in seed.Variants)
+        {
+            var materialId = materialByName[variantSeed.Material].Id;
+            var colorId = colorByName[variantSeed.Color].Id;
+
+            var variant = product.Variants.FirstOrDefault(v =>
+                string.Equals(v.SizeLabel, variantSeed.Size, StringComparison.Ordinal) &&
+                v.MaterialTypeId == materialId &&
+                v.ColorId == colorId);
+
+            if (variant is null)
+            {
+                product.Variants.Add(new ProductVariant
+                {
+                    SizeLabel = variantSeed.Size,
+                    MaterialTypeId = materialId,
+                    ColorId = colorId,
+                    WidthMm = variantSeed.W,
+                    HeightMm = variantSeed.H,
+                    DepthMm = variantSeed.D,
+                    WeightGrams = variantSeed.Weight,
+                    PriceOffset = variantSeed.Offset,
+                    IsActive = true
+                });
+                continue;
+            }
+
+            variant.WidthMm = variantSeed.W;
+            variant.HeightMm = variantSeed.H;
+            variant.DepthMm = variantSeed.D;
+            variant.WeightGrams = variantSeed.Weight;
+            variant.PriceOffset = variantSeed.Offset;
+            variant.IsActive = true;
+        }
+    }
+
+    await db.SaveChangesAsync();
 }
 
 async Task SeedBootstrapAdminAsync(
