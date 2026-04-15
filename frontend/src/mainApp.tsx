@@ -15,6 +15,8 @@ import * as THREE from 'three'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 import { StlViewer } from './StlViewer'
 import { CartProvider, useCart } from './CartContext'
+import { AdminProductsPage } from './AdminProductsPage'
+import { AdminProductDetailsPage } from './AdminProductDetailsPage'
 
 const API_BASE_URL = 'http://localhost:5051'
 
@@ -1106,13 +1108,18 @@ function App() {
                 />
                 <Route
                   path="products"
+                  element={<AdminProductsPage />}
+                />
+                <Route
+                  path="products/new"
                   element={
                     <AdminPlaceholderPage
-                      title="Products"
-                      description="Product management module placeholder. Product create/edit tools will be added in a later phase."
+                      title="Add Product"
+                      description="Create product flow is not part of Phase 1. This route is a placeholder for the next phase."
                     />
                   }
                 />
+                <Route path="products/:productId" element={<AdminProductDetailsPage />} />
                 <Route
                   path="inventory"
                   element={
@@ -1156,6 +1163,7 @@ ReactDOM.createRoot(document.getElementById('app') as HTMLElement).render(
     <App />
   </React.StrictMode>,
 )
+
 
 
 
